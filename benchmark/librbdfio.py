@@ -53,6 +53,12 @@ class LibrbdFio(Benchmark):
         self.rate_iops = config.get("rate_iops", None)
         self.fio_out_format = config.get("fio_out_format", "json,normal")
         self.data_pool = None
+
+        iodepth_key: str = self._get_iodepth_key(config.keys())  # type: ignore[arg-type]
+        self._iodepth_per_volume: dict[int, int] = self._calculate_iodepth_per_volume(
+            self.volumes_per_client, config[iodepth_key], iodepth_key
+        )
+
         # use_existing_volumes needs to be true to set the pool and rbd names
         self.use_existing_volumes = bool(config.get("use_existing_volumes", False))
         self.no_sudo = bool(config.get("no_sudo", False))
@@ -168,55 +174,25 @@ class LibrbdFio(Benchmark):
                 enable_monitor = bool(test["monitor"])
             # TODO: simplify this loop to have a single iterator for general queu depth
             for job in test["numjobs"]:
-                iodepth: list[str] = []
-                use_total_iodepth: bool = False
-                if "total_iodepth" in test.keys():
-                    iodepth = test["total_iodepth"]
-                    use_total_iodepth = True
-                else:
-                    iodepth = test["iodepth"]
-                for iod in iodepth:
-                    if use_total_iodepth:
-                        self._ioddepth_per_volume = self._calculate_iodepth_per_volume(
-                            int(self.volumes_per_client), int(iod)
-                        )
-
-                    self.time = test["time"]
-                    self.mode = test["mode"]
+                iodepth_key: str = self._get_iodepth_key(test.keys())  # type: ignore[arg-type]
+                for iodepth_value in test[iodepth_key]:
+                    self._iodepth_per_volume = self._calculate_iodepth_per_volume(
+                        int(self.volumes_per_client), int(iodepth_value), iodepth_key
+                    )
                     if "op_size" in test:
                         self.op_size = test["op_size"]
+                    self.mode = test["mode"]
+                    self.time = test["time"]
                     self.numjobs = job
                     self.iodepth = iod
-
-                    # Needed to allow for different mixed ratio results with the same block size, we
-                    # store the ratio within the directory name. Otherwise workloads would only support
-                    # 1 mixed workload for a given block size. For 100% read, 100% write don't need to
-                    # store the read/write ratio.
-
-                    if self.mode == "randrw":
-                        self.rwmixread = test["rwmixread"]
-                        self.rwmixwrite = 100 - self.rwmixread
-                        self.run_dir = (
-                            f"{self.base_run_dir}/{self.mode}{self.rwmixread}{self.rwmixwrite}_{int(self.op_size)}/"
-                            f"iodepth-{int(self.iodepth):03d}/numjobs-{int(self.numjobs):03d}"
-                        )
-                    else:
-                        self.run_dir = (
-                            f"{self.base_run_dir}/{self.mode}_{int(self.op_size)}/"
-                            f"iodepth-{int(self.iodepth):03d}/numjobs-{int(self.numjobs):03d}"
-                        )
-
+                    self.run_dir = (
+                        f"{self.base_run_dir}/{self.mode}_{int(self.op_size)}/"
+                        f"iodepth-{int(self.iodepth):03d}/numjobs-{int(self.numjobs):03d}"
+                    )
                     common.make_remote_dir(self.run_dir)
 
-                    # If there is a script to run specified in the yaml for this workload
-                    # then add it to the process list before the actual test
-                    script_command: str = test.get("pre_workload_script", "")
-                    if script_command != "":
-                        logger.debug("Scheduling script %s to run before this workolad", script_command)
-                        script_process = common.pdsh(settings.getnodes("clients"), script_command)
-                        script_process.wait()
-
-                    for i in range(self.volumes_per_client):
+                    number_of_volumes: int = len(self._iodepth_per_volume.keys())
+                    for i in range(number_of_volumes):
                         fio_cmd = self.mkfiocmd(i)
                         p = common.pdsh(settings.getnodes("clients"), fio_cmd)
                         ps.append(p)
@@ -265,7 +241,8 @@ class LibrbdFio(Benchmark):
             monitoring.start(self.run_dir)
             logger.info("Running rbd fio %s test.", self.mode)
             ps = []
-            for i in range(self.volumes_per_client):
+            number_of_volumes: int = len(self._iodepth_per_volume.keys())
+            for i in range(number_of_volumes):
                 fio_cmd = self.mkfiocmd(i)
                 p = common.pdsh(settings.getnodes("clients"), fio_cmd)
                 ps.append(p)
@@ -282,7 +259,7 @@ class LibrbdFio(Benchmark):
         common.sync_files(f"{self.run_dir}/*", self.out_dir)
         self.analyze(self.out_dir)
 
-    def mkfiocmd(self, volnum):
+    def mkfiocmd(self, volnum: int) -> str:
         """
         Construct a FIO cmd (note the shell interpolation for the host
         executing FIO).
@@ -295,7 +272,7 @@ class LibrbdFio(Benchmark):
         logger.debug("Using rbdname %s", rbdname)
         out_file = f"{self.run_dir}/output.{volnum:d}"
 
-        fio_cmd = ""
+        fio_cmd: str = ""
         if not self.no_sudo:
             fio_cmd = "sudo "
         fio_cmd += "%s --ioengine=rbd --clientname=admin --pool=%s --rbdname=%s --invalidate=0" % (
@@ -316,7 +293,9 @@ class LibrbdFio(Benchmark):
         fio_cmd += " --numjobs=%s" % self.numjobs
         fio_cmd += " --direct=1"
         fio_cmd += " --bs=%dB" % self.op_size
-        fio_cmd += " --iodepth=%d" % self.iodepth
+
+        iodepth = f"{self._iodepth_per_volume[volnum]}"
+        fio_cmd += " --iodepth=%s" % iodepth
         fio_cmd += " --end_fsync=%d" % self.end_fsync
         #        if self.vol_size:
         #            fio_cmd += ' -- size=%dM' % self.vol_size
@@ -445,6 +424,78 @@ class LibrbdFio(Benchmark):
     def analyze(self, out_dir):
         logger.info("Convert results to json format.")
         self.parse(out_dir)
+
+    def _get_iodepth_key(self, configuration_keys: list[str]) -> str:
+        """
+        Get the range of iodepth values to use for this test. This will either
+        be the list of total_iodepth values if the total_iodepth key exists,
+        or the iodepth value if it does not
+        """
+        iodepth_key: str = "iodepth"
+        if "total_iodepth" in configuration_keys:
+            iodepth_key = "total_iodepth"
+
+        return iodepth_key
+
+    def _calculate_iodepth_per_volume(self, number_of_volumes: int, iodepth: int, iodepth_key: str) -> dict[int, int]:
+        """
+        Calculate the desired iodepth per volume for a single benchmark run.
+        If total_iodepth is to be used calculate what the iodepth per volume
+        should be and return that, otherwise return the iodepth value for each
+        volume
+        """
+        if iodepth_key == "total_iodepth":
+            return self._calculate_iodepth_per_volume_from_total_iodepth(number_of_volumes, iodepth)
+        else:
+            return self._set_iodepth_for_every_volume(number_of_volumes, iodepth)
+
+    def _calculate_iodepth_per_volume_from_total_iodepth(
+        self, number_of_volumes: int, total_desired_iodepth: int
+    ) -> dict[int, int]:
+        """
+        Given the total desired iodepth and the number of volumes from the
+        configuration yaml file, calculate the iodepth for each volume
+
+        If the iodepth specified in total_iodepth is too small to allow
+        an iodepth of 1 per volume, then reduce the number of volumes
+        used to allow an iodepth of 1 per volume.
+        """
+        queue_depths: dict[int, int] = {}
+
+        if number_of_volumes > total_desired_iodepth:
+            logger.warning(
+                "The total iodepth requested: %s is less than 1 per volume (%s)",
+                total_desired_iodepth,
+                number_of_volumes,
+            )
+            logger.warning(
+                "Number of volumes per client will be reduced from %s to %s", number_of_volumes, total_desired_iodepth
+            )
+            number_of_volumes = total_desired_iodepth
+
+        iodepth_per_volume: int = total_desired_iodepth // number_of_volumes
+        remainder: int = total_desired_iodepth % number_of_volumes
+
+        for volume_id in range(number_of_volumes):
+            iodepth: int = iodepth_per_volume
+
+            if remainder > 0:
+                iodepth += 1
+                remainder -= 1
+            queue_depths[volume_id] = iodepth
+
+        return queue_depths
+
+    def _set_iodepth_for_every_volume(self, number_of_volumes: int, iodepth: int) -> dict[int, int]:
+        """
+        Given an iodepth value and the number ov volumes return a dictionary
+        that contains the desired iodepth value for each volume
+        """
+        queue_depths: dict[int, int] = {}
+        for volume_id in range(number_of_volumes):
+            queue_depths[volume_id] = iodepth
+
+        return queue_depths
 
     def __str__(self):
         return "%s\n%s\n%s" % (self.run_dir, self.out_dir, super(LibrbdFio, self).__str__())
