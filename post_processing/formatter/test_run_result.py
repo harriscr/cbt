@@ -305,3 +305,29 @@ class TestRunResult:
         )
 
         return latency_standard_deviation
+
+    def _get_iodepth(self, iodepth_value: str, logfile_name: str) -> str:
+        """
+        Checks to see if the iodepth encoded in the logfile name matches
+        the iodepth in the output file. If it does, return the iodepth
+        from the file, otherwise return the iodepth parsed from the
+        log file path
+        """
+        iodepth: int = int(iodepth_value)
+
+        # the logfile name is of the format:
+        #  /tmp/cbt/00000000/LibrbdFio/randwrite_1048576/iodepth-001/numjobs-001/output.0
+        iodepth_start_index: int = logfile_name.find("iodepth")
+        numjobs_start_index: int = logfile_name.find("numjobs")
+        # an index of -1 is no match found, so do nothing
+        if iodepth_start_index != -1 and numjobs_start_index != -1:
+            iodepth_end_index: int = iodepth_start_index + len("iodepth")
+            iodepth_string: str = logfile_name[iodepth_end_index + 1 : numjobs_start_index - 1]
+            logfile_iodepth: int = int(iodepth_string)
+
+            if logfile_iodepth > iodepth:
+                iodepth = logfile_iodepth
+
+        return str(iodepth)
+
+    __test__ = False
