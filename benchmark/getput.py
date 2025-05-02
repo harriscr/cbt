@@ -28,7 +28,7 @@ class Getput(Benchmark):
         self.debug = config.get('debug', None)
         self.logops = config.get('logops', None)
         self.grace = config.get('grace', None)
-        self.run_dir = '%s/osd_ra-%08d/op_size-%08d/procs-%08d/%s/%s' % (self.run_dir, int(self.osd_ra), int(self.op_size), int(self.procs), self.test, self.ctype)
+        self.run_dir = '%s/op_size-%08d/procs-%08d/%s/%s' % (self.run_dir, int(self.op_size), int(self.procs), self.test, self.ctype)
         self.out_dir = '%s/osd_ra-%08d/op_size-%08d/procs-%08d/%s/%s' % (self.archive_dir, int(self.osd_ra), int(self.op_size), int(self.procs), self.test, self.ctype)
         self.pool_profile = config.get('pool_profile', 'default')
         self.cmd_path = config.get('cmd_path', "/usr/bin/getput")

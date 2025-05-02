@@ -30,7 +30,7 @@ class Cosbench(Benchmark):
         self.use_existing = settings.cluster.get('use_existing')
         self.is_teuthology = settings.cluster.get('is_teuthology', False)
 
-        self.run_dir = '%s/osd_ra-%08d/op_size-%s/concurrent_procs-%03d/containers-%05d/objects-%05d/%s' % (self.run_dir, int(self.osd_ra), self.op_size, int(self.total_procs), int(self.containers), int(self.objects), self.mode)
+        self.run_dir = '%s/op_size-%s/concurrent_procs-%03d/containers-%05d/objects-%05d/%s' % (self.run_dir, self.op_size, int(self.total_procs), int(self.containers), int(self.objects), self.mode)
         self.out_dir = self.archive_dir
 
     def _filter_ssh_output(self, output):

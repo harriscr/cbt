@@ -8,9 +8,39 @@ import signal
 import socket
 import subprocess
 
+from copy import deepcopy
+from itertools import product
+from typing import Any, Generator
+
 import settings
 
 logger = logging.getLogger("cbt")
+
+def all_configs(config: dict[str, Any]) -> Generator[dict[str, Any], None, None]:
+    """
+    return all parameter combinations for config
+    config: dict - list of parameters
+    iterate over all top-level lists in config
+    """
+    cycle_over_lists: list[Any] = []
+    cycle_over_names: list[Any] = []
+    default: dict[str, Any] = {}
+
+    for param, value in list(config.items()):
+        # acceptable applies to benchmark as a whole, no need to it to
+        # the set for permutation
+        if param == "acceptable":
+            default[param] = value
+        elif isinstance(value, list):
+            cycle_over_lists.append(value)
+            cycle_over_names.append(param)
+        else:
+            default[param] = value
+
+    for permutation in product(*cycle_over_lists):
+        current = deepcopy(default)
+        current.update(list(zip(cycle_over_names, permutation)))
+        yield current
 
 class Localhost(object):
     """
