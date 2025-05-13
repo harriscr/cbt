@@ -323,9 +323,9 @@ class LibrbdFio(Benchmark):
                 with output_path.open("w", encoding="utf-8") as output_file:
                     for line in input_file.readlines():
                         # Note that we could use if line == "{\n": here, but that is less friendly to non-unix systems
-                        if re.search("{$", line):
+                        if re.search("^{$", line):
                             found = True
-                        if re.search("}$", line):
+                        if re.search("^}$", line):
                             found = False
                             break
 
