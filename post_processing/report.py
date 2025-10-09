@@ -8,6 +8,7 @@ performance report, and from within the CBT code if we have been told to
 """
 
 import os
+import traceback
 from argparse import Namespace
 from logging import Logger, getLogger
 from typing import NamedTuple
@@ -85,7 +86,7 @@ class Report:
         """
         return self._result_code
 
-    def generate(self) -> None:
+    def generate(self, throw_exception: bool = False) -> None:
         """
         Do all the steps necessary to create the report file
         """
@@ -116,7 +117,14 @@ class Report:
 
         except Exception as e:
             self._result_code = 1
-            raise e
+            error_text: str = (
+                "Post processing has failed due to an exeption. Report may not be generated."
+                + f"\n The exception was {e}"
+                + f"\nWith stack trace {traceback.format_exc()}"
+            )
+            log.warning(error_text)
+            if throw_exception:
+                raise e
 
     def _generate_intermediate_files(self) -> None:
         """

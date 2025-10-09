@@ -46,7 +46,7 @@ class Workload:
 
         for command_list in self._commands.values():
             commands_list: list[str] = []
-            output_directory: str = command_list[0].get_output_directory()
+            output_directory: str = command_list[0].output_directory
             for command in command_list:
                 command.set_executable(self._executable_path)
                 commands_list.append(command.get())
@@ -71,7 +71,7 @@ class Workload:
 
         for command_list in self._commands.values():
             for command in command_list:
-                unique_output_directories.add(command.get_output_directory())
+                unique_output_directories.add(command.output_directory)
 
         yield from unique_output_directories
 
@@ -129,7 +129,7 @@ class Workload:
         Create the concrete command classes for each command for this workload
         """
         if self._parent_benchmark_type == "rbdfio":
-            return RbdFioCommand(options, f"{self._base_run_directory}/{self._name}")
+            return RbdFioCommand(options, f"{self._base_run_directory}{self._name}")
 
         log.error("Benchmark Class %s is not supported by workloads yet", self._parent_benchmark_type)
         raise NotImplementedError

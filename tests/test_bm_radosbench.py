@@ -16,7 +16,7 @@ class TestBenchmarkradosbench(unittest.TestCase):
     cl_name = "tools/invariant.yaml"
     bl_name = "tools/baseline.json"
     bl_json = {}
-    bl_md5 = 'b62e2394b5bac4dea01cceace04d0359'
+    bl_md5 = '1bca3b68efeb5a9c72c23efa2815dce8'
     md5_returned = None
 
     @classmethod
@@ -39,6 +39,18 @@ class TestBenchmarkradosbench(unittest.TestCase):
     def test_valid_baseline(self):
         """ Verify the baseline has not been compromised """
         self.assertEqual( self.bl_md5, str(self.md5_returned) )
+
+    def test_valid__base_archive_directory(self):
+        """ Basic sanity attribute identity _base_archive_directory check"""
+        b = benchmarkfactory.get_object(self.archive_dir,
+                                            self.cluster, 'radosbench', self.iteration)
+        self.assertEqual(self.bl_json['radosbench']['_base_archive_directory'], b.__dict__['_base_archive_directory'])
+
+    def test_valid__create_report(self):
+        """ Basic sanity attribute identity _create_report check"""
+        b = benchmarkfactory.get_object(self.archive_dir,
+                                            self.cluster, 'radosbench', self.iteration)
+        self.assertEqual(self.bl_json['radosbench']['_create_report'], b.__dict__['_create_report'])
 
     def test_valid_archive_dir(self):
         """ Basic sanity attribute identity archive_dir check"""

@@ -1,5 +1,7 @@
 {
     "cephtestrados": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/CephTestRados/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -157,6 +159,8 @@
         }
     },
     "fio": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/Fio/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -321,6 +325,8 @@
         "valgrind": null
     },
     "getput": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/Getput/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -474,6 +480,8 @@
         "valgrind": null
     },
     "hsbench": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/Hsbench/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -627,6 +635,8 @@
         "valgrind": null
     },
     "kvmrbdfio": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/KvmRbdFio/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -787,6 +797,8 @@
         "vol_size": 58982.4
     },
     "librbdfio": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_iodepth_per_volume": {
             "0": 16
         },
@@ -804,7 +816,6 @@
         },
         "acceptable": {},
         "archive_dir": "/tmp/results/00000000/id-83a653b5",
-        "base_run_dir": "/tmp/cbt.XYZ/00000000/LibrbdFio/osd_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write",
         "cluster": {
             "archive_dir": "/tmp/ceph",
             "auth_urls": [],
@@ -951,7 +962,7 @@
         "recov_pool_name": "cbt-rbdfio-recov",
         "recov_pool_profile": "default",
         "recov_test_type": "blocking",
-        "run_dir": "/tmp/cbt.XYZ/00000000/LibrbdFio/osd_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write/osd_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write",
+        "run_dir": "/tmp/cbt.XYZ/00000000/LibrbdFio/osd_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write",
         "rwmixread": 50,
         "rwmixwrite": 50,
         "time": null,
@@ -965,6 +976,8 @@
         "wait_pgautoscaler_timeout": -1
     },
     "nullbench": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/Nullbench/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -1104,6 +1117,8 @@
         "valgrind": null
     },
     "radosbench": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/Radosbench/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -1258,6 +1273,8 @@
         "write_time": "300"
     },
     "rawfio": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/RawFio/osd_ra-00000000/",
             "_benchmark_configuration": {
@@ -1415,6 +1432,8 @@
         "vol_size": 58982.4
     },
     "rbdfio": {
+        "_base_archive_directory": "/tmp",
+        "_create_report": false,
         "_workloads": {
             "_base_run_directory": "/tmp/cbt.XYZ/00000000/RbdFio/osd_ra-00000000/",
             "_benchmark_configuration": {
