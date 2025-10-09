@@ -69,7 +69,8 @@ class Command(ABC):
 
         return self._generate_full_command()
 
-    def get_output_directory(self) -> str:
+    @property
+    def output_directory(self) -> str:
         """
         Return the output directory that will be used for this command
         """
@@ -93,7 +94,8 @@ class Command(ABC):
         """
         self._options.update(new_options)
 
-    def get_ramp_time(self) -> Optional[str]:
+    @property
+    def ramp_time(self) -> Optional[str]:
         """
         Get the ramp time for this command
         """

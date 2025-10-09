@@ -310,6 +310,9 @@ class BenchmarkRunResult:
                 if "total_iodepth" in value:
                     logfile_iodepth = int(value[len("total_iodepth") + 1 :])
 
+                elif "iodepth" in value:
+                    logfile_iodepth = int(value[len("iodepth") + 1 :])
+
             # Old-style workloads
             if not logfile_iodepth:
                 # the logfile name is of the format:

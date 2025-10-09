@@ -71,7 +71,7 @@ class CommonOutputFormatter:
         # and we do not care about ordering. It would be possible to use a List
         # and manually check for duplictaes, but that seems more untidy
 
-        self._path: Path
+        self._path: Path = Path(self._directory)
         self._file_list: list[Path] = []
 
     def convert_all_files(self) -> None:
@@ -79,7 +79,7 @@ class CommonOutputFormatter:
         Convert all files in a given directory to our internal format and then
         write out the intermediate file that can then be used to produce a graph
         """
-        log.info("Converting all files with name %s in directory %s", self._directory, self._filename_root)
+        log.info("Converting all files with name %s in directory %s", self._filename_root, self._directory)
         self._find_all_results_files_in_directory()
 
         self._find_all_testrun_ids()
@@ -87,7 +87,11 @@ class CommonOutputFormatter:
             log.debug("Looking at test run with id %s", testrun_id)
 
             # Actually find the test run ID directory
-            testrun_directories: list[Path] = list(self._path.glob(f"**/{testrun_id}"))
+            # When calling from CBT itself this archive dir already includes the testrun directory
+            # so we should handle this case here
+            testrun_directories: list[Path] = [self._path]
+            if "id-" not in f"{self._path}":
+                testrun_directories = list(self._path.glob(f"**/{testrun_id}"))
             if len(testrun_directories) > 1:
                 log.debug(
                     "We have more than one directory for test run %s so using the compatibility method", testrun_id
@@ -151,7 +155,6 @@ class CommonOutputFormatter:
         """
         log.debug("Finding all %s* files from %s", self._filename_root, self._directory)
 
-        self._path = Path(self._directory)
         # this gives a generator where each contained object is a Path of format:
         # <self._directory>/results/<iteration>/<run_id>/json_output.<vol_id>
         self._file_list = [

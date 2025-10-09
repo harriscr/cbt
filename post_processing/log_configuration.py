@@ -62,7 +62,6 @@ def _get_configuration() -> dict[str, Any]:
 
     logging_config: dict[str, Any] = {
         "version": 1,
-        "disable_existing_loggers": True,
         "formatters": {
             "default": {
                 "format": "%(asctime)s - %(levelname)s - %(module)s %(funcName)s : %(message)s",
