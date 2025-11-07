@@ -105,7 +105,7 @@ class LibrbdFio(Benchmark):
         monitoring.start( f"{self.run_dir}idle_monitoring" )
         time.sleep(self.idle_monitor_sleep)
         monitoring.stop()
-        common.sync_files( f'{self.run_dir}/*', self.out_dir)
+        common.sync_files( f'{self.run_dir}/', self.out_dir)
         # Create the recovery image based on test type requested
         if 'recovery_test' in self.cluster.config and self.recov_test_type == 'background':
             self.mkrecovimage()
