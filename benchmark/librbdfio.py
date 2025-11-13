@@ -9,6 +9,9 @@ import settings
 import monitoring
 import re
 from pathlib import Path
+from typing import Union
+
+from post_processing.report import Report, ReportOptions
 
 from .benchmark import Benchmark
 
@@ -73,14 +76,6 @@ class LibrbdFio(Benchmark):
                             f'concurrent_procs-{int(self.total_procs):03d}/'
                             f'iodepth-{int(self.iodepth):03d}/{self.mode}' )
 
-        self.base_run_dir = self.run_dir # we need this for the new workloads block
-        self.run_dir =  f'{self.base_run_dir}/'
-        if self.osd_ra is not None:
-            self.run_dir += f'osd_ra-{int(self.osd_ra):08d}/'
-        self.run_dir +=  ( f'op_size-{int(self.op_size):08d}/'
-                        f'concurrent_procs-{int(self.total_procs):03d}/'
-                        f'iodepth-{int(self.iodepth):03d}/{self.mode}' )
-
         self.out_dir = self.archive_dir
 
         self.norandommap = config.get("norandommap", False)
@@ -107,10 +102,10 @@ class LibrbdFio(Benchmark):
         common.clean_remote_dir(self.run_dir)
         common.make_remote_dir(self.run_dir)
         logger.info('Pausing for %ds for idle monitoring.', self.idle_monitor_sleep)
-        monitoring.start( f"{self.run_dir}/idle_monitoring" )
+        monitoring.start( f"{self.run_dir}idle_monitoring" )
         time.sleep(self.idle_monitor_sleep)
         monitoring.stop()
-        common.sync_files( f'{self.run_dir}/*', self.out_dir)
+        common.sync_files( f'{self.run_dir}/', self.out_dir)
         # Create the recovery image based on test type requested
         if 'recovery_test' in self.cluster.config and self.recov_test_type == 'background':
             self.mkrecovimage()
@@ -134,7 +129,7 @@ class LibrbdFio(Benchmark):
         # If the pg autoscaler kicks in before starting the test,
         # wait for it to complete. Otherwise, results may be skewed.
         ret = self.cluster.check_pg_autoscaler(self.wait_pgautoscaler_timeout,
-                                               f"{self.run_dir}/pgautoscaler.log")
+                                               f"{self.run_dir}pgautoscaler.log")
         if ret == 1:
             logger.warn("PG autoscaler taking longer to complete."
                         "Continuing anyway...results may be skewed.")
@@ -180,6 +175,21 @@ class LibrbdFio(Benchmark):
             source_directory = f"{self._workloads.get_base_run_directory()}/*"
         common.sync_files(source_directory, self.out_dir)
         self.analyze(self.out_dir)
+
+        if self._create_report:
+            report_config: dict[str, Union[str, bool]] = settings.report
+            output_directory: str = report_config.get('output_directory', f"{self.out_dir}/report")
+            report_options: ReportOptions = ReportOptions(
+                archives = [f"{self.archive_dir}"],
+                output_directory = output_directory,
+                results_file_root = "json_output",
+                create_pdf = report_config.get("create_pdf", False),
+                force_refresh = report_config.get("force_refresh", False),
+                no_error_bars = report_config.get("no_error_bars", False),
+                comparison = False
+            )
+            report: Report = Report(report_options)
+            report.generate()
 
 
     def mkfiocmd(self, volnum: int) -> str:

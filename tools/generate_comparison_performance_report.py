@@ -131,9 +131,9 @@ def main() -> int:
     report: Report = Report(options=report_options)
 
     try:
-        report.generate()
+        report.generate(throw_exception=True)
     except Exception:
-        log.exception("FAILED: Encountered an error plotting results")
+        log.exception("FAILED: Encountered an error generating the report")
 
     return report.result_code
 

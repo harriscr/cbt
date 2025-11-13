@@ -16,7 +16,7 @@ class TestBenchmarklibrbdfio(unittest.TestCase):
     cl_name = "tools/invariant.yaml"
     bl_name = "tools/baseline.json"
     bl_json = {}
-    bl_md5 = 'b62e2394b5bac4dea01cceace04d0359'
+    bl_md5 = '1bca3b68efeb5a9c72c23efa2815dce8'
     md5_returned = None
 
     @classmethod
@@ -40,17 +40,23 @@ class TestBenchmarklibrbdfio(unittest.TestCase):
         """ Verify the baseline has not been compromised """
         self.assertEqual( self.bl_md5, str(self.md5_returned) )
 
+    def test_valid__base_archive_directory(self):
+        """ Basic sanity attribute identity _base_archive_directory check"""
+        b = benchmarkfactory.get_object(self.archive_dir,
+                                            self.cluster, 'librbdfio', self.iteration)
+        self.assertEqual(self.bl_json['librbdfio']['_base_archive_directory'], b.__dict__['_base_archive_directory'])
+
+    def test_valid__create_report(self):
+        """ Basic sanity attribute identity _create_report check"""
+        b = benchmarkfactory.get_object(self.archive_dir,
+                                            self.cluster, 'librbdfio', self.iteration)
+        self.assertEqual(self.bl_json['librbdfio']['_create_report'], b.__dict__['_create_report'])
+
     def test_valid_archive_dir(self):
         """ Basic sanity attribute identity archive_dir check"""
         b = benchmarkfactory.get_object(self.archive_dir,
                                             self.cluster, 'librbdfio', self.iteration)
         self.assertEqual(self.bl_json['librbdfio']['archive_dir'], b.__dict__['archive_dir'])
-
-    def test_valid_base_run_dir(self):
-        """ Basic sanity attribute identity base_run_dir check"""
-        b = benchmarkfactory.get_object(self.archive_dir,
-                                            self.cluster, 'librbdfio', self.iteration)
-        self.assertEqual(self.bl_json['librbdfio']['base_run_dir'], b.__dict__['base_run_dir'])
 
     def test_valid_cmd_path(self):
         """ Basic sanity attribute identity cmd_path check"""

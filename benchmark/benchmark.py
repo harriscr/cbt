@@ -49,6 +49,7 @@ class Benchmark(object):
         self.run_dir += f'/osd_ra-{int(self.osd_ra):08d}/'
 
         self._workloads = Workloads(config, self.run_dir)
+        self._create_report = config.get("create_report", False)
 
     def create_data_analyzer(self, run, host, proc):
         pass
