@@ -15,7 +15,7 @@ from post_processing.common import (
     read_intermediate_file,
 )
 from post_processing.plotter.common_format_plotter import CommonFormatPlotter
-from post_processing.types import CommonFormatDataType
+from post_processing.post_processing_types import CommonFormatDataType
 
 log: Logger = getLogger("plotter")
 

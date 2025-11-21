@@ -9,89 +9,30 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from post_processing.common import get_blocksize, sum_standard_deviation_values
-from post_processing.types import (
+from post_processing.post_processing_types import (
     InternalBlocksizeDataType,
-    InternalFormattedOutputType,
     IodepthDataType,
     JobsDataType,
 )
+from post_processing.run_result.run_result import RunResult
 
 log: Logger = getLogger("formatter")
 
 
-class BenchmarkRunResult:
+class BenchmarkRunResult(RunResult):
     """
     Stores and processes the data from a benchmark run
     """
 
-    def __init__(self, directory: Path, file_name_root: str) -> None:
-        self._path: Path = directory
-        self._has_been_processed: bool = False
-
-        self._files: list[Path] = self._find_files_for_testrun(file_name_root=file_name_root)
-        self._processed_data: InternalFormattedOutputType = {}
-
-    def have_been_processed(self) -> bool:
-        """
-        True if we have already processed the files for this set of results,
-        otherwise False
-        """
-        return self._has_been_processed
-
-    def process(self) -> None:
-        """
-        Convert the results data from all the individual files that make up this
-        result into the standard intermediate format
-        """
-        number_of_volumes_for_test_run: int = len(self._files)
-
-        if number_of_volumes_for_test_run > 0:
-            self._process_test_run_files()
-        else:
-            log.warning("test run with directory %s has no files - not doing any conversion", self._path)
-
-        self._has_been_processed = True
-
-    def get(self) -> InternalFormattedOutputType:
-        """
-        Return the processed results
-        """
-
-        if not self._has_been_processed:
-            self.process()
-
-        return self._processed_data
-
-    def _process_test_run_files(self) -> None:
-        """
-        If there is only details for a single volume then we can convert the
-        data from the fio output directly into our output format
-        """
-        for file_path in self._files:
-            if not self._file_is_empty(file_path):
-                if not self._file_is_precondition(file_path):
-                    log.debug("Processing file %s", file_path)
-                    self._convert_file(file_path)
-                else:
-                    log.warning("Not processing file %s as it is from a precondition operation", file_path)
-                    self._files.remove(file_path)
-            else:
-                log.warning("Cannot process file %s as it is empty", file_path)
-
     def _convert_file(self, file_path: Path) -> None:
-        """
-        convert the contents of a single output file from the benchmark into the
-        JSON format we want for writing the graphs
+        # The operation specified in ['global options']['rw'] can be of the format
+        # <operation>
+        # or
+        # <operation:blocksize>
+        #
+        # so it must be trimmed o get the actual name (read, write etc) for the operation perfomend
 
-        The operation specified in ['global options']['rw'] can be of the format
-        <operation>
-        or
-        <operation:blocksize>
-
-        so it must be trimmed o get the actual name (read, write etc) for the operation perfomend
-        """
-
-        with open(str(file_path), "r", encoding="utf8") as file:
+        with open(str(file_path), encoding="utf8") as file:
             data: dict[str, Any] = json.load(file)
             iodepth: str = self._get_iodepth(f"{data['global options']['iodepth']}", str(file_path))
 
@@ -100,6 +41,11 @@ class BenchmarkRunResult:
             global_details: IodepthDataType = self._get_global_options(data["global options"])
             blocksize_details: InternalBlocksizeDataType = {blocksize: {}}
             iodepth_details: dict[str, IodepthDataType] = {iodepth: global_details}
+
+            # This is intentionally commented out.
+            # sys_cpu: int = int(f"{data['jobs']['sys_cpu']}")
+            # user_cpu: int = int(f"{data['jobs']['usr_cpu']}")
+            # cpu_usage: str = f"{sys_cpu + user_cpu}"
 
             io_details: IodepthDataType = {}
 
@@ -120,6 +66,8 @@ class BenchmarkRunResult:
                 io_details = self._get_io_details(all_jobs=data["jobs"])
 
             iodepth_details[iodepth].update(io_details)
+            # TODO: add in resource stats here:
+            # iodepth_details[iodepth].update({"fio_cpu": cpu_usage})
             blocksize_details[blocksize].update(iodepth_details)
 
             if self._processed_data.get(operation, None):
@@ -196,18 +144,6 @@ class BenchmarkRunResult:
             for path in self._path.glob(f"**/{file_name_root}.*")
             if re.search(rf"{file_name_root}.\d+$", f"{path}")
         ]
-
-    def _file_is_empty(self, file_path: Path) -> bool:
-        """
-        returns true if the input file contains no data
-        """
-        return file_path.stat().st_size == 0
-
-    def _file_is_precondition(self, file_path: Path) -> bool:
-        """
-        Check if a file is from a precondition part of a test run
-        """
-        return "precond" in str(file_path)
 
     # pylint: disable=[too-many-locals]
     def _get_io_details(self, all_jobs: JobsDataType) -> IodepthDataType:

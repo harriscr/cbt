@@ -7,7 +7,7 @@ import os
 from logging import Logger, getLogger
 from typing import Any
 
-from post_processing.types import HandlerType
+from post_processing.post_processing_types import HandlerType
 
 LOGFILE_LOCATION: str = os.getenv("CBT_PP_LOGFILE_LOCATION", "/tmp")
 LOGFILE_NAME_BASE: str = f"{LOGFILE_LOCATION}/cbt/post_processing"

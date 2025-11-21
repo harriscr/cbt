@@ -11,29 +11,16 @@ import os
 import traceback
 from argparse import Namespace
 from logging import Logger, getLogger
-from typing import NamedTuple
 
 from post_processing.formatter.common_output_formatter import CommonOutputFormatter
 from post_processing.log_configuration import setup_logging
+from post_processing.post_processing_types import ReportOptions
 from post_processing.reports.comparison_report_generator import ComparisonReportGenerator
+from post_processing.reports.report_generator import ReportGenerator
 from post_processing.reports.simple_report_generator import SimpleReportGenerator
 
 setup_logging()
 log: Logger = getLogger("reports")
-
-
-class ReportOptions(NamedTuple):
-    """
-    This class is used to store the options required to create a report.
-    """
-
-    archives: list[str]
-    output_directory: str
-    results_file_root: str
-    create_pdf: bool
-    force_refresh: bool
-    no_error_bars: bool
-    comparison: bool
 
 
 def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = False) -> ReportOptions:
@@ -95,6 +82,7 @@ class Report:
 
         try:
             self._generate_intermediate_files()
+            report_generator: ReportGenerator
 
             if self._options.comparison:
                 report_generator = ComparisonReportGenerator(

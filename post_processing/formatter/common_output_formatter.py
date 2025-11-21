@@ -19,6 +19,10 @@ The output is a JSON file of the format:
                     runtime_seconds:
                     std_deviation:
                     total_ios:
+                    fio_cpu
+                    osd_cpu
+                    total_cpu
+
     }
     ...
     queue_depth_n {
@@ -40,10 +44,9 @@ from logging import Logger, getLogger
 from pathlib import Path
 from typing import Optional
 
-# pylint: disable=[no-name-in-module]
 from common import pdsh  # pyright: ignore[reportUnknownVariableType]
-from post_processing.formatter.benchmark_run_result import BenchmarkRunResult
-from post_processing.types import CommonFormatDataType, InternalFormattedOutputType
+from post_processing.post_processing_types import CommonFormatDataType, InternalFormattedOutputType
+from post_processing.run_result.benchmark import BenchmarkRunResult
 
 log: Logger = getLogger("formatter")
 

@@ -17,7 +17,7 @@ from post_processing.common import (
     PLOT_FILE_EXTENSION,
     get_blocksize_percentage_operation_from_file_name,
 )
-from post_processing.types import CommonFormatDataType, PlotDataType
+from post_processing.post_processing_types import CommonFormatDataType, PlotDataType
 
 log: Logger = getLogger("plotter")
 

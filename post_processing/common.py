@@ -11,7 +11,7 @@ from math import sqrt
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from post_processing.types import CommonFormatDataType
+from post_processing.post_processing_types import CommonFormatDataType
 
 log: Logger = getLogger("cbt")
 
@@ -273,3 +273,17 @@ def sum_standard_deviation_values(
     )
 
     return latency_standard_deviation
+
+
+def file_is_empty(file_path: Path) -> bool:
+    """
+    returns true if the input file contains no data
+    """
+    return file_path.stat().st_size == 0
+
+
+def file_is_precondition(file_path: Path) -> bool:
+    """
+    Check if a file is from a precondition part of a test run
+    """
+    return "precond" in str(file_path)

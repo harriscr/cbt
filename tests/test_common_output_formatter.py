@@ -4,10 +4,10 @@ Unit tests for the CommonOutputFormatter class
 
 import unittest
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import ClassVar, Union
 
-from post_processing.formatter.benchmark_run_result import BenchmarkRunResult
 from post_processing.formatter.common_output_formatter import CommonOutputFormatter
+from post_processing.run_result.benchmark import BenchmarkRunResult
 
 
 # pyright: ignore[reportPrivateUsage]
@@ -17,7 +17,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
      working as expected
     """
 
-    read_data: Dict[str, Union[int, float, Dict[str, Union[int, float]]]] = {
+    read_data: ClassVar[dict[str, Union[int, float, dict[str, Union[int, float]]]]] = {
         "io_bytes": 440397824,
         "bw_bytes": 34982748,
         "iops": 8539.518627,
@@ -27,7 +27,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
             "stddev": 9231257.966646,
         },
     }
-    write_data: Dict[str, Union[int, float, Dict[str, Union[int, float]]]] = {
+    write_data: ClassVar[dict[str, Union[int, float, dict[str, Union[int, float]]]]] = {
         "io_bytes": 480681984,
         "bw_bytes": 35640393,
         "iops": 8700.155705,
@@ -37,7 +37,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
             "stddev": 10820490.136089,
         },
     }
-    global_options_data: Dict[str, str] = {
+    global_options_data: ClassVar[dict[str, str]] = {
         "rw": "write",
         "runtime": "90",
         "numjobs": "1",
@@ -45,7 +45,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         "iodepth": "16",
     }
 
-    job_data: List[Dict[str, Union[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]]] = [
+    job_data: ClassVar[list[dict[str, Union[str, dict[str, Union[int, float, dict[str, Union[int, float]]]]]]]] = [
         {},
         {"read": read_data, "write": write_data},
     ]
@@ -71,7 +71,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
 
         output = self.test_run_results._get_global_options(self.global_options_data)  # pyright: ignore[reportPrivateUsage]
 
-        expected_output: Dict[str, str] = {
+        expected_output: dict[str, str] = {
             "number_of_jobs": self.global_options_data["numjobs"],
             "runtime_seconds": self.global_options_data["runtime"],
             "blocksize": self.global_options_data["bs"][:-1],
@@ -83,11 +83,11 @@ class TestCommonOutputFormatter(unittest.TestCase):
         """
         Check the parsing of extended global_options
         """
-        extended_test_data: Dict[str, str] = self.global_options_data.copy()
+        extended_test_data: dict[str, str] = self.global_options_data.copy()
         extended_test_data.update({"rwmixread": "70", "rwmixwrite": "30"})
         output = self.test_run_results._get_global_options(extended_test_data)  # pyright: ignore[reportPrivateUsage]
 
-        expected_output: Dict[str, str] = {
+        expected_output: dict[str, str] = {
             "number_of_jobs": extended_test_data["numjobs"],
             "runtime_seconds": extended_test_data["runtime"],
             "blocksize": self.global_options_data["bs"][:-1],
@@ -101,7 +101,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         """
         Make sure we pull the correct details from the read data
         """
-        read_job_details: List[Dict[str, Union[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]]] = [
+        read_job_details: list[dict[str, Union[str, dict[str, Union[int, float, dict[str, Union[int, float]]]]]]] = [
             {"read": self.read_data}
         ]
         output = self.test_run_results._get_io_details(read_job_details)  # pyright: ignore[reportPrivateUsage]
@@ -109,7 +109,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         assert isinstance(self.read_data["io_bytes"], int)
         assert isinstance(self.read_data["bw_bytes"], int)
         assert isinstance(self.read_data["iops"], float)
-        expected_output: Dict[str, str] = {
+        expected_output: dict[str, str] = {
             "io_bytes": f"{self.read_data['io_bytes']}",
             "bandwidth_bytes": f"{self.read_data['bw_bytes']}",
             "iops": f"{self.read_data['iops']}",
@@ -122,7 +122,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         """
         Make sure we pull the correct details from the read data
         """
-        write_job_details: List[Dict[str, Union[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]]] = [
+        write_job_details: list[dict[str, Union[str, dict[str, Union[int, float, dict[str, Union[int, float]]]]]]] = [
             {"write": self.write_data}
         ]
         output = self.test_run_results._get_io_details(write_job_details)  # pyright: ignore[reportPrivateUsage]
@@ -130,7 +130,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         assert isinstance(self.write_data["io_bytes"], int)
         assert isinstance(self.write_data["bw_bytes"], int)
         assert isinstance(self.write_data["iops"], float)
-        expected_output: Dict[str, str] = {
+        expected_output: dict[str, str] = {
             "io_bytes": f"{self.write_data['io_bytes']}",
             "bandwidth_bytes": f"{self.write_data['bw_bytes']}",
             "iops": f"{self.write_data['iops']}",
@@ -158,7 +158,7 @@ class TestCommonOutputFormatter(unittest.TestCase):
         assert isinstance(self.read_data["iops"], float)
         iops: str = str(float(self.write_data["iops"]) + float(self.read_data["iops"]))
 
-        expected_output: Dict[str, str] = {
+        expected_output: dict[str, str] = {
             "io_bytes": io,
             "bandwidth_bytes": bw,
             "iops": iops,
