@@ -245,6 +245,7 @@ class BenchmarkRunResult(RunResult):
             for value in logfile_name.split("/"):
                 if "total_iodepth" in value:
                     logfile_iodepth = int(value[len("total_iodepth") + 1 :])
+                    break
 
                 elif "iodepth" in value:
                     logfile_iodepth = int(value[len("iodepth") + 1 :])

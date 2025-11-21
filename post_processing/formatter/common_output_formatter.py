@@ -93,13 +93,14 @@ class CommonOutputFormatter:
             # When calling from CBT itself this archive dir already includes the testrun directory
             # so we should handle this case here
             testrun_directories: list[Path] = [self._path]
+            results: BenchmarkRunResult
             if "id-" not in f"{self._path}":
                 testrun_directories = list(self._path.glob(f"**/{testrun_id}"))
             if len(testrun_directories) > 1:
                 log.debug(
                     "We have more than one directory for test run %s so using the compatibility method", testrun_id
                 )
-                results: BenchmarkRunResult = BenchmarkRunResult(Path(self._directory), self._filename_root)
+                results = BenchmarkRunResult(Path(self._directory), self._filename_root)
 
                 results.process()
                 self._formatted_output.update(results.get())
@@ -111,9 +112,7 @@ class CommonOutputFormatter:
                     directory for directory in testrun_directory_path.iterdir() if directory.is_dir()
                 ]:
                     log.debug("Looking at results for directory %s", io_pattern_directory)
-                    results: BenchmarkRunResult = BenchmarkRunResult(
-                        directory=io_pattern_directory, file_name_root=self._filename_root
-                    )
+                    results = BenchmarkRunResult(directory=io_pattern_directory, file_name_root=self._filename_root)
                     results.process()
                     processed_results: InternalFormattedOutputType = results.get()
                     for run_type, run_data in processed_results.items():

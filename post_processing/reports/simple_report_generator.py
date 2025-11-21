@@ -155,6 +155,13 @@ class SimpleReportGenerator(ReportGenerator):
         file_paths: list[Path] = [
             path for path in self._archive_directories[0].parents if f"{path}".endswith("/results")
         ]
+        # Because this can either be called ruring a run, or separately afterwards the
+        # archive directory passed may be at a different point in the directory tree.
+        # We therefore need to search both above and below the current directory for
+        # the config yaml
+        if len(file_paths) == 0:
+            file_paths = [path for path in self._archive_directories[0].iterdir() if f"{path}".endswith("/results")]
+
         yaml_file_path: list[Path] = list(file_paths[0].glob("**/cbt_config.yaml"))
 
         # This should only ever return a single path as each archive directory
