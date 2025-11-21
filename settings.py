@@ -13,6 +13,7 @@ cluster = {}
 client_endpoints = {}
 benchmarks = {}
 monitoring_profiles = {}
+report = {}
 
 
 def _handle_monitoring_legacy():
@@ -26,7 +27,7 @@ def _handle_monitoring_legacy():
 
 
 def initialize(ctx):
-    global common, cluster, client_endpoints, benchmarks, monitoring_profiles
+    global common, cluster, client_endpoints, benchmarks, monitoring_profiles, report
 
     config = {}
     try:
@@ -40,6 +41,7 @@ def initialize(ctx):
     client_endpoints = config.get('client_endpoints', {})
     benchmarks = config.get('benchmarks', {})
     monitoring_profiles = config.get('monitoring_profiles', dict(collectl={}))
+    report = config.get('report', {})
 
     if not cluster:
         shutdown('No cluster section found in config file, bailing.')

@@ -152,8 +152,11 @@ class SimpleReportGenerator(ReportGenerator):
         return self._sort_list_of_paths(unsorted_paths, index)
 
     def _find_configuration_yaml_files(self) -> list[Path]:
-        file_paths: list[Path] = list(self._archive_directories[0].glob("**/cbt_config.yaml"))
+        file_paths: list[Path] = [
+            path for path in self._archive_directories[0].parents if f"{path}".endswith("/results")
+        ]
+        yaml_file_path: list[Path] = list(file_paths[0].glob("**/cbt_config.yaml"))
 
         # This should only ever return a single path as each archive directory
         # should only ever contain a single cbt_config.yaml file
-        return file_paths
+        return yaml_file_path
