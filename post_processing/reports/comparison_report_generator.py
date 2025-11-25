@@ -142,10 +142,6 @@ class ComparisonReportGenerator(ReportGenerator):
         safe_contents = strip_confidential_data_from_yaml(file_contents)
         markdown_string: str = f"```{safe_contents}```"
         self._report.new_paragraph(markdown_string)
-        file_contents: str = file_path.read_text()
-        safe_contents = strip_confidential_data_from_yaml(file_contents)
-        markdown_string: str = f"```{safe_contents}```"
-        self._report.new_paragraph(markdown_string)
 
     def _generate_report_name(self) -> str:
         datetime_string: str = get_date_time_string()
@@ -181,7 +177,7 @@ class ComparisonReportGenerator(ReportGenerator):
         file_paths: list[Path] = []
 
         for directory in self._archive_directories:
-            file_paths.extend(directory.glob("**/cbt_config.yaml"))
+            file_paths.extend([path for path in directory.parents if f"{path}".endswith("/results")])
 
         return file_paths
 
@@ -261,9 +257,7 @@ class ComparisonReportGenerator(ReportGenerator):
         If there are more that 20 differences between base and comparison then
         return True, otherwise False
         """
-        diff_command: str = (
-            f"/usr/bin/env diff -wy --suppress-common-lines {str(base_file)} {str(comparison_file)} | wc -l"
-        )
+        diff_command: str = f"/usr/bin/env diff -wy --suppress-common-lines {base_file!s} {comparison_file!s} | wc -l"
 
         output: bytes
         try:
