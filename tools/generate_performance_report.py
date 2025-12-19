@@ -121,6 +121,13 @@ def main() -> int:
         help="Regenerate the intermediate files and plots, even if they exist",
     )
 
+    parser.add_argument(
+        "--plot_resources",
+        action="store_true",
+        required=False,
+        help="Add a line for resource usage to the plots, if details are avaialable",
+    )
+
     report_options: ReportOptions = parse_namespace_to_options(arguments=parser.parse_args())
 
     report: Report = Report(report_options)

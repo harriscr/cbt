@@ -10,23 +10,33 @@ from pathlib import Path
 # the ModuleType does exists in the types module, so no idea why pylint is
 # flagging this
 from types import ModuleType  # pylint: disable=[no-name-in-module]
-from typing import Optional, Union
+from typing import Optional
+
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from post_processing.common import (
     DATA_FILE_EXTENSION_WITH_DOT,
     PLOT_FILE_EXTENSION,
     get_blocksize_percentage_operation_from_file_name,
 )
+from post_processing.plotter.cpu_plotter import CPUPlotter
+from post_processing.plotter.io_plotter import IOPlotter
 from post_processing.post_processing_types import CommonFormatDataType, PlotDataType
 
 log: Logger = getLogger("plotter")
 
+CPU_PLOT_DEFAULT_COLOUR: str = "#5ca904"
 
-# pylint: disable=too-few-public-methods
+
+# pylint: disable=too-few-public-methods, too-many-locals
 class CommonFormatPlotter(ABC):
     """
     The base class for plotting results curves
     """
+
+    def __init__(self, plotter: ModuleType) -> None:
+        self._plotter = plotter
 
     @abstractmethod
     def draw_and_save(self) -> None:
@@ -41,7 +51,7 @@ class CommonFormatPlotter(ABC):
         Generate the name for the file the plot will be saved to.
         """
 
-    def _add_title(self, plotter: ModuleType, source_files: list[Path]) -> None:
+    def _add_title(self, source_files: list[Path]) -> None:
         """
         Given the source file full path, generate the title for the
         data plot and add it to the plot
@@ -54,7 +64,7 @@ class CommonFormatPlotter(ABC):
         else:
             title = self._construct_title_from_list_of_file_names(source_files)
 
-        plotter.title(title)
+        self._plotter.title(title)
 
     def _construct_title_from_list_of_file_names(self, file_paths: list[Path]) -> str:
         """
@@ -108,7 +118,7 @@ class CommonFormatPlotter(ABC):
 
         return f"{blocksize} {read_percent} {operation}"
 
-    def _set_axis(self, plotter: ModuleType, maximum_values: Optional[tuple[int, int]] = None) -> None:
+    def _set_axis(self, maximum_values: Optional[tuple[int, int]] = None) -> None:
         """
         Set the range for the plot axes.
 
@@ -123,8 +133,8 @@ class CommonFormatPlotter(ABC):
             maximum_x = maximum_values[0]
             maximum_y = maximum_values[1]
 
-        plotter.xlim(0, maximum_x)
-        plotter.ylim(0, maximum_y)
+        self._plotter.xlim(0, maximum_x)
+        self._plotter.ylim(0, maximum_y)
 
     def _sort_plot_data(self, unsorted_data: CommonFormatDataType) -> PlotDataType:
         """
@@ -144,19 +154,32 @@ class CommonFormatPlotter(ABC):
         return sorted_plot_data
 
     def _add_single_file_data_with_optional_errorbars(
-        self, plotter: ModuleType, file_data: CommonFormatDataType, plot_error_bars: bool
-    ) -> None:
+        self,
+        file_data: CommonFormatDataType,
+        plot_error_bars: bool = False,
+        plot_resource_usage: bool = False,
+        label: Optional[str] = None,
+    ) -> Figure:
         """
         Add the data from a single file to a plot. Include error bars. Each point
         in the plot is the latency vs IOPs or bandwidth for a given queue depth.
 
         The plot will have red error bars with a blue plot line
         """
+        io_plot_label: str = label if label else "IO Details"
+
+        figure: Figure
+        io_axis: Axes
+        figure, io_axis = self._plotter.subplots()
+
+        cpu_plotter: CPUPlotter = CPUPlotter(main_axis=io_axis)
+        io_plotter: IOPlotter = IOPlotter(main_axis=io_axis)
+        io_plotter.y_label = "Latency (ms)"
+        io_plotter.plot_label = io_plot_label
 
         sorted_plot_data: PlotDataType = self._sort_plot_data(file_data)
 
-        x_data: list[Union[int, float]] = []
-        y_data: list[Union[int, float]] = []
+        x_data: list[float] = []
         error_bars: list[float] = []
         capsize: int = 0
 
@@ -167,65 +190,50 @@ class CommonFormatPlotter(ABC):
             if blocksize >= 64:
                 # convert bytes to Mb, not Mib, so use 1000s rather than 1024
                 x_data.append(float(data["bandwidth_bytes"]) / (1000 * 1000))
-                plotter.xlabel("Bandwidth (MB/s)")
+                io_axis.set_xlabel("Bandwidth (MB/s)")  # pyright: ignore[reportUnknownMemberType]
             else:
                 x_data.append(float(data["iops"]))
-                plotter.xlabel("IOps")
+                io_axis.set_xlabel("IOps")  # pyright: ignore[reportUnknownMemberType]
                 # The stored values are in ns, we want to convert to ms
-            y_data.append(float(data["latency"]) / (1000 * 1000))
-            plotter.ylabel("Latency (ms)")
+
+            io_plotter.add_y_data(data["latency"])
+
+            # If we don't have CPU data in the intermediate files, then there's
+            # no point in trying to plot a CPU line
+            if data.get("cpu", None) is None and plot_resource_usage:
+                log.warning("Unable to plot CPU usage as the CPU data does not exist")
+                plot_resource_usage = False
+
+            if plot_resource_usage:
+                cpu_plotter.add_y_data(data.get("cpu", ""))
+                plot_error_bars = False
 
             if plot_error_bars:
                 error_bars.append(float(data["std_deviation"]) / (1000 * 1000))
                 capsize = 3
             else:
                 error_bars.append(0)
+                capsize = 0
 
-        plotter.errorbar(x_data, y_data, error_bars, capsize=capsize, ecolor="red")
+        io_plotter.plot_with_error_bars(x_data=x_data, error_data=error_bars, cap_size=capsize)
 
-    def _add_single_file_data(self, plotter: ModuleType, file_data: CommonFormatDataType, label: str) -> None:
-        """
-        Add the data from a single file to a plot.
+        if plot_resource_usage:
+            cpu_plotter.plot(x_data=x_data)
 
-        This will be a line of colour with data points marked by a small cross,
-        and no error bars.
-        """
-        sorted_plot_data: PlotDataType = self._sort_plot_data(file_data)
+        return figure
 
-        x_data: list[Union[int, float]] = []
-        y_data: list[Union[int, float]] = []
-
-        blocksize: int = 0
-
-        for _, data in sorted_plot_data.items():
-            # for blocksize less than 64K we want to use the bandwidth to plot the graphs,
-            # otherwise we should use iops.
-            blocksize = int(int(data["blocksize"]) / 1024)
-            if blocksize >= 64:
-                # convert bytes to Mb, not Mib, so use 1000s rather than 1024
-                x_data.append(float(data["bandwidth_bytes"]) / (1000 * 1000))
-                plotter.xlabel("Bandwidth (MB/s)")
-            else:
-                x_data.append(float(data["iops"]))
-                plotter.xlabel("IOps")
-                # The stored values are in ns, we want to convert to ms
-            y_data.append(float(data["latency"]) / (1000 * 1000))
-            plotter.ylabel("Latency (ms)")
-
-        # The "+-" here indicates a solid line with crosses at the data points
-        plotter.plot(x_data, y_data, "+-", label=label)
-
-    def _save_plot(self, plotter: ModuleType, file_path: str) -> None:
+    def _save_plot(self, file_path: str) -> None:
         """
         save the plot to disk as a svg file
 
         The bbox_inches="tight" option makes sure that the legend is included
         in the plot and not cut off
         """
-        plotter.savefig(file_path, format=f"{PLOT_FILE_EXTENSION}", bbox_inches="tight")
+        self._plotter.savefig(file_path, format=f"{PLOT_FILE_EXTENSION}", bbox_inches="tight")
 
-    def _clear_plot(self, plotter: ModuleType) -> None:
+    def _clear_plot(self) -> None:
         """
         Clear the plot data
         """
-        plotter.clf()
+        self._plotter.close()
+        self._plotter.clf()

@@ -43,9 +43,9 @@ class BenchmarkRunResult(RunResult):
             iodepth_details: dict[str, IodepthDataType] = {iodepth: global_details}
 
             # This is intentionally commented out.
-            # sys_cpu: int = int(f"{data['jobs']['sys_cpu']}")
-            # user_cpu: int = int(f"{data['jobs']['usr_cpu']}")
-            # cpu_usage: str = f"{sys_cpu + user_cpu}"
+            sys_cpu: float = float(f"{data['jobs'][0]['sys_cpu']}")
+            user_cpu: float = float(f"{data['jobs'][0]['usr_cpu']}")
+            cpu_usage: str = f"{sys_cpu + user_cpu}"
 
             io_details: IodepthDataType = {}
 
@@ -67,7 +67,7 @@ class BenchmarkRunResult(RunResult):
 
             iodepth_details[iodepth].update(io_details)
             # TODO: add in resource stats here:
-            # iodepth_details[iodepth].update({"fio_cpu": cpu_usage})
+            iodepth_details[iodepth].update({"cpu": cpu_usage})
             blocksize_details[blocksize].update(iodepth_details)
 
             if self._processed_data.get(operation, None):

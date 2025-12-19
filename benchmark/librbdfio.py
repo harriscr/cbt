@@ -186,7 +186,8 @@ class LibrbdFio(Benchmark):
                 create_pdf = report_config.get("create_pdf", False),
                 force_refresh = report_config.get("force_refresh", False),
                 no_error_bars = report_config.get("no_error_bars", False),
-                comparison = False
+                comparison = False,
+                plot_resources = report_config.get("plot_resource", False)
             )
             report: Report = Report(report_options)
             report.generate()

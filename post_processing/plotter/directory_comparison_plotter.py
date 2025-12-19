@@ -31,6 +31,7 @@ class DirectoryComparisonPlotter(CommonFormatPlotter):
     def __init__(self, output_directory: str, directories: list[str]) -> None:
         self._output_directory: str = f"{output_directory}"
         self._comparison_directories: list[Path] = [Path(f"{directory}/visualisation") for directory in directories]
+        super().__init__(plotter)
 
     def draw_and_save(self) -> None:
         # output_file_path: str = self._generate_output_file_name(files=self._comparison_directories)
@@ -45,22 +46,23 @@ class DirectoryComparisonPlotter(CommonFormatPlotter):
             for directory in self._comparison_directories:
                 file_data: CommonFormatDataType = read_intermediate_file(f"{directory}/{file_name}")
                 # we choose the last directory name for the label to apply to the data
-                self._add_single_file_data(
-                    plotter=plotter,
+                self._add_single_file_data_with_optional_errorbars(
                     file_data=file_data,
                     label=f"{directory.parts[-2]}",
+                    plot_error_bars=False,
+                    plot_resource_usage=False,
                 )
 
-            self._add_title(plotter=plotter, source_files=[Path(file_name)])
-            self._set_axis(plotter=plotter)
+            self._add_title(source_files=[Path(file_name)])
+            self._set_axis()
 
             # make sure we add the legend to the plot
             plotter.legend(  # pyright: ignore[reportUnknownMemberType]
                 bbox_to_anchor=(0.5, -0.1), loc="upper center", ncol=2
             )
 
-            self._save_plot(plotter=plotter, file_path=output_file_path)
-            self._clear_plot(plotter=plotter)
+            self._save_plot(file_path=output_file_path)
+            self._clear_plot()
 
     def _generate_output_file_name(self, files: list[Path]) -> str:
         # we know we will only ever be passed a single file name

@@ -70,7 +70,7 @@ def read_intermediate_file(file_path: str) -> CommonFormatDataType:
             data = json.load(file_data)
     except FileNotFoundError:
         log.exception("File %s does not exist", file_path)
-    except IOError:
+    except OSError:
         log.error("Error reading file %s", file_path)
 
     return data
@@ -287,3 +287,19 @@ def file_is_precondition(file_path: Path) -> bool:
     Check if a file is from a precondition part of a test run
     """
     return "precond" in str(file_path)
+
+
+def get_resource_details_from_file(file_path: Path) -> tuple[str, str]:
+    """
+    Return the max CPU and max memory value from an intermnediate file
+
+    :param file_path: Description
+    :type file_path: Path
+    :return: The CPU and memory usage figures for this
+    :rtype: tuple[str, str]
+    """
+    data: CommonFormatDataType = read_intermediate_file(file_path=f"{file_path}")
+
+    max_cpu: float = float(f"{data.get('maximum_cpu_usage', '0')}")
+    max_memory: float = float(f"{data.get('maximum_memory_usage', '0')}")
+    return f"{max_cpu:.2f}", f"{max_memory:.2f}"

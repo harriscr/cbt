@@ -7,6 +7,10 @@ from typing import NamedTuple, Union
 
 
 class CPUPlotType(Enum):
+    """
+    The different options for producing a plot of CPU data.
+    """
+
     NOCPU = 0
     OVERALL = auto()
     OSD = auto()
@@ -26,7 +30,7 @@ class ReportOptions(NamedTuple):
     force_refresh: bool
     no_error_bars: bool
     comparison: bool
-    cpu_plot: CPUPlotType = CPUPlotType.NOCPU
+    plot_resources: bool
 
 
 # Log setup types

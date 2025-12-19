@@ -10,6 +10,8 @@ from pathlib import Path
 from post_processing.common import file_is_empty, file_is_precondition
 from post_processing.post_processing_types import InternalFormattedOutputType
 
+# from post_processing.run_result.resource_result import ResourceResult
+
 log: Logger = getLogger("formatter")
 
 
@@ -21,6 +23,7 @@ class RunResult(ABC):
     def __init__(self, directory: Path, file_name_root: str) -> None:
         self._path: Path = directory
         self._has_been_processed: bool = False
+        # self._resource_result: ResourceResult
 
         self._files: list[Path] = self._find_files_for_testrun(file_name_root=file_name_root)
         self._processed_data: InternalFormattedOutputType = {}
@@ -54,7 +57,7 @@ class RunResult(ABC):
 
         self._has_been_processed = True
 
-    def have_been_processed(self) -> bool:
+    def has_been_processed(self) -> bool:
         """
         True if we have already processed the files for this set of results,
         otherwise False
