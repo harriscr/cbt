@@ -1,5 +1,5 @@
 """
-Code to automatically generate a comparison report from thw or more direcotries
+Code to automatically generate a comparison report from two or more directories
 containing a set of performance results in the intermediate format in PR 319.
 
 The report will be generated in markdowm format using the create_report()
@@ -38,7 +38,7 @@ class ComparisonReportGenerator(ReportGenerator):
     compares one or more sets of test data, and creates plots that have data from multiple
     runs on a single plot
 
-    This can either be a comparison of two idividual files, or multiple test run directories
+    This can either be a comparison of two individual files, or multiple test run directories
     containing several individual FIO runs
     """
 
@@ -80,7 +80,7 @@ class ComparisonReportGenerator(ReportGenerator):
                 self._report.new_header(level=2, title=section)
                 table_images = data
 
-                # We need to calculate the rumber of rows, but new_table() requires the
+                # We need to calculate the number of rows, but new_table() requires the
                 # exact number of items to fill the table, so we may need to add a dummy
                 # entry at the end
                 number_of_rows: int = len(table_images) // 2
@@ -177,7 +177,7 @@ class ComparisonReportGenerator(ReportGenerator):
         file_paths: list[Path] = []
 
         for directory in self._archive_directories:
-            # Because this can either be called ruring a run, or separately afterwards the
+            # Because this can either be called during a run, or separately afterwards the
             # archive directory passed may be at a different point in the directory tree.
             # We therefore need to search both above and below the current directory for
             # the config yaml

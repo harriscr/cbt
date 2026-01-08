@@ -123,7 +123,7 @@ class SimpleReportGenerator(ReportGenerator):
                 self._report.new_header(level=2, title=section_name)
                 table_images = section_data
 
-                # We need to calculate the rumber of rows, but new_table() requires the
+                # We need to calculate the number of rows, but new_table() requires the
                 # exact number of items to fill the table, so we may need to add a dummy
                 # entry at the end
                 number_of_rows: int = len(table_images) // 2
@@ -165,7 +165,7 @@ class SimpleReportGenerator(ReportGenerator):
         file_paths: list[Path] = [
             path for path in self._archive_directories[0].parents if f"{path}".endswith("/results")
         ]
-        # Because this can either be called ruring a run, or separately afterwards the
+        # Because this can either be called during a run, or separately afterwards the
         # archive directory passed may be at a different point in the directory tree.
         # We therefore need to search both above and below the current directory for
         # the config yaml

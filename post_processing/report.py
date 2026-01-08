@@ -20,7 +20,7 @@ from post_processing.reports.report_generator import ReportGenerator
 from post_processing.reports.simple_report_generator import SimpleReportGenerator
 
 setup_logging()
-log: Logger = getLogger("reports")
+log: Logger = getLogger(name="reports")
 
 
 def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = False) -> ReportOptions:
@@ -80,10 +80,15 @@ class Report:
 
     def generate(self, throw_exception: bool = False) -> None:
         """
-        Do all the steps necessary to create the report file
+        Do all the steps necessary to create the report file.
+        
+        Args:
+            throw_exception: If True, re-raises exceptions after logging them.
+                           If False, exceptions are caught and logged but not re-raised.
+                           Defaults to False.
         """
         log.info("Creating directory %s to contain the reports", self._options.output_directory)
-        os.makedirs(f"{self._options.output_directory}", exist_ok=True)
+        os.makedirs(name=f"{self._options.output_directory}", exist_ok=True)
 
         try:
             self._generate_intermediate_files()
@@ -136,7 +141,7 @@ class Report:
                 # Either the directory doesn't exists, or is empty, or the user has told us to regenerate the files
 
                 log.debug("Creating directory %s", output_directory)
-                os.makedirs(output_directory, exist_ok=True)
+                os.makedirs(name=output_directory, exist_ok=True)
 
                 log.info("Generating intermediate files for %s in directory %s", directory, output_directory)
                 formatter: CommonOutputFormatter = CommonOutputFormatter(

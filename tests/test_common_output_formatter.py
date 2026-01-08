@@ -2,12 +2,14 @@
 Unit tests for the CommonOutputFormatter class
 """
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 from typing import ClassVar, Union
 
 from post_processing.formatter.common_output_formatter import CommonOutputFormatter
-from post_processing.run_result.benchmark import BenchmarkRunResult
+from post_processing.run_results.benchmarks.fio import FIO
 
 
 # pyright: ignore[reportPrivateUsage]
@@ -53,7 +55,35 @@ class TestCommonOutputFormatter(unittest.TestCase):
     def setUp(self) -> None:
         print("setting up tests")
         self.formatter = CommonOutputFormatter("/tmp")
-        self.test_run_results = BenchmarkRunResult(Path("/tmp"), "output")
+        
+        # Create a temporary file with mock FIO output data
+        self.temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        mock_fio_data = {
+            "global options": {
+                "rw": "write",
+                "runtime": "90",
+                "numjobs": "1",
+                "bs": "4096B",
+                "iodepth": "16"
+            },
+            "jobs": [
+                {},
+                {"read": self.read_data, "write": self.write_data}
+            ]
+        }
+        json.dump(mock_fio_data, self.temp_file)
+        self.temp_file.close()
+        
+        self.test_run_results = FIO(Path(self.temp_file.name))
+    
+    def tearDown(self) -> None:
+        """Clean up temporary files"""
+        import os
+        if hasattr(self, 'temp_file'):
+            try:
+                os.unlink(self.temp_file.name)
+            except FileNotFoundError:
+                pass
 
     def test_do_nothing(self) -> None:
         """

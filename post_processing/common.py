@@ -15,7 +15,7 @@ from post_processing.post_processing_types import CommonFormatDataType
 
 log: Logger = getLogger("cbt")
 
-# A convertion between the operation type in the intermediate file format
+# A conversion between the operation type in the intermediate file format
 # and a human-readable string that can be used in the title for the plot.
 TITLE_CONVERSION: dict[str, str] = {
     "read": "Sequential Read",
@@ -66,7 +66,7 @@ def read_intermediate_file(file_path: str) -> CommonFormatDataType:
     # common_output_format.py, so it is safe to specify here
 
     try:
-        with open(file_path, "r", encoding="utf8") as file_data:
+        with open(file_path, encoding="utf8") as file_data:
             data = json.load(file_data)
     except FileNotFoundError:
         log.exception("File %s does not exist", file_path)
@@ -109,6 +109,23 @@ def get_latency_throughput_from_file(file_path: Path) -> tuple[str, str]:
     latency_at_maximum_throughput: float = float(latency)
 
     return (f"{max_throughput:.0f} {throughput_type}", f"{latency_at_maximum_throughput:.1f}")
+
+
+def get_resource_details_from_file(file_path: Path) -> tuple[str, str]:
+    """
+    Return the max CPU and max memory value from an intermediate file.
+    
+    Args:
+        file_path: Path to the intermediate format data file
+    
+    Returns:
+        A tuple of (max_cpu, max_memory) as formatted strings
+    """
+    data: CommonFormatDataType = read_intermediate_file(file_path=f"{file_path}")
+
+    max_cpu: float = float(f"{data.get('maximum_cpu_usage', '0')}")
+    max_memory: float = float(f"{data.get('maximum_memory_usage', '0')}")
+    return f"{max_cpu:.2f}", f"{max_memory:.2f}"
 
 
 def strip_confidential_data_from_yaml(yaml_data: str) -> str:
@@ -235,7 +252,19 @@ def recursive_search(data_to_search: dict[str, Any], search_key: str) -> Optiona
 
 def get_blocksize(blocksize_value: str) -> str:
     """
-    return a blocksize value without the units
+    Extract the numeric blocksize value from a string, removing any unit suffix.
+    
+    Args:
+        blocksize_value: Blocksize string that may include a unit suffix (e.g., "4K", "1024")
+    
+    Returns:
+        The numeric blocksize value as a string without units
+        
+    Example:
+        >>> get_blocksize("4K")
+        "4"
+        >>> get_blocksize("1024")
+        "1024"
     """
     blocksize: str = blocksize_value
     if re.search(r"\D$", blocksize):
@@ -289,17 +318,22 @@ def file_is_precondition(file_path: Path) -> bool:
     return "precond" in str(file_path)
 
 
-def get_resource_details_from_file(file_path: Path) -> tuple[str, str]:
+def sum_mean_values(latencies: list[float], num_ops: list[int], total_ios: int) -> float:
     """
-    Return the max CPU and max memory value from an intermnediate file
+    Calculate the sum of mean latency values.
 
-    :param file_path: Description
-    :type file_path: Path
-    :return: The CPU and memory usage figures for this
-    :rtype: tuple[str, str]
+    As these values are means we cannot simply add them together.
+    Instead we must apply the mathematical formula:
+
+    combined mean = sum( mean * num_ops ) / total operations
     """
-    data: CommonFormatDataType = read_intermediate_file(file_path=f"{file_path}")
+    weighted_latency: float = 0
 
-    max_cpu: float = float(f"{data.get('maximum_cpu_usage', '0')}")
-    max_memory: float = float(f"{data.get('maximum_memory_usage', '0')}")
-    return f"{max_cpu:.2f}", f"{max_memory:.2f}"
+    # for the combined mean we need to store mean_latency * num_ops for each
+    # set of values
+    for index, latency in enumerate(latencies):
+        weighted_latency += latency * num_ops[index]
+
+    combined_mean_latency: float = weighted_latency / total_ios
+
+    return combined_mean_latency

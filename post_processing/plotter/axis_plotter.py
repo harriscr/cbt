@@ -18,12 +18,10 @@ class AxisPlotter(ABC):
 
     def __init__(self, main_axis: Axes) -> None:
         """
-        Docstring for __init__
-
-        :param main_axis: The main axis for this plot
-        :type main_axis: Axes
-        :param main_axis: The main axis for this plot
-        :type main_axis: Axes
+        Initialize the AxisPlotter with a matplotlib Axes object.
+        
+        Args:
+            main_axis: The main matplotlib Axes object for this plot
         """
         self._main_axes = main_axis
         self._y_data: list[float] = []
