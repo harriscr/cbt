@@ -27,8 +27,8 @@ from post_processing.formatter.common_output_formatter import CommonOutputFormat
 from post_processing.log_configuration import setup_logging
 
 setup_logging()
-
 log: Logger = getLogger("formatter")
+log.info("=== Starting Post Processing of CBT results ===")
 
 
 def main() -> int:

@@ -11,29 +11,16 @@ import os
 import traceback
 from argparse import Namespace
 from logging import Logger, getLogger
-from typing import NamedTuple
 
 from post_processing.formatter.common_output_formatter import CommonOutputFormatter
 from post_processing.log_configuration import setup_logging
+from post_processing.post_processing_types import ReportOptions
 from post_processing.reports.comparison_report_generator import ComparisonReportGenerator
+from post_processing.reports.report_generator import ReportGenerator
 from post_processing.reports.simple_report_generator import SimpleReportGenerator
 
 setup_logging()
 log: Logger = getLogger("reports")
-
-
-class ReportOptions(NamedTuple):
-    """
-    This class is used to store the options required to create a report.
-    """
-
-    archives: list[str]
-    output_directory: str
-    results_file_root: str
-    create_pdf: bool
-    force_refresh: bool
-    no_error_bars: bool
-    comparison: bool
 
 
 def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = False) -> ReportOptions:
@@ -41,6 +28,7 @@ def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = F
     Parse a namespace as used by argparse into our internal NamedTuple representation
     """
     no_error_bars: bool = False
+    plot_resources: bool = False
     archives: list[str] = []
     output_directory: str = arguments.output_directory
 
@@ -54,6 +42,9 @@ def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = F
     if hasattr(arguments, "no_error_bars"):
         no_error_bars = arguments.no_error_bars
 
+    if hasattr(arguments, "plot_resources"):
+        plot_resources = arguments.plot_resources
+
     return ReportOptions(
         archives=archives,
         output_directory=output_directory,
@@ -62,6 +53,7 @@ def parse_namespace_to_options(arguments: Namespace, comparison_report: bool = F
         force_refresh=arguments.force_refresh,
         no_error_bars=no_error_bars,
         comparison=comparison_report,
+        plot_resources=plot_resources,
     )
 
 
@@ -95,6 +87,7 @@ class Report:
 
         try:
             self._generate_intermediate_files()
+            report_generator: ReportGenerator
 
             if self._options.comparison:
                 report_generator = ComparisonReportGenerator(
@@ -108,6 +101,7 @@ class Report:
                     output_directory=self._options.output_directory,
                     no_error_bars=self._options.no_error_bars,
                     force_refresh=self._options.force_refresh,
+                    plot_resources=self._options.plot_resources,
                 )
 
             report_generator.create_report()
@@ -115,7 +109,10 @@ class Report:
             if self._options.create_pdf:
                 report_generator.save_as_pdf()
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=[broad-exception-caught]
+            # Generating the intermediate files can raise a broad range of exceptions from
+            # the different sub-modules called. Therefore we want to catch them all and raise
+            # an error message as this will directly impact any future steps
             self._result_code = 1
             error_text: str = (
                 "Post processing has failed due to an exeption. Report may not be generated."
@@ -149,7 +146,10 @@ class Report:
                 try:
                     formatter.convert_all_files()
                     formatter.write_output_file()
-                except Exception as e:
+                except Exception as e:  # pylint: disable=[broad-exception-caught]
+                    # Generating the intermediate files can raise a broad range of exceptions from
+                    # the different sub-modules called. Therefore we want to catch them all and raise
+                    # an error message as this will directly impact any future steps
                     log.error(
                         "Encountered an error parsing results in directory %s with name %s",
                         directory,

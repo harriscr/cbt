@@ -22,6 +22,7 @@ from post_processing.common import (
     TITLE_CONVERSION,
     get_blocksize_percentage_operation_from_file_name,
     get_latency_throughput_from_file,
+    get_resource_details_from_file,
     strip_confidential_data_from_yaml,
 )
 from post_processing.plotter.simple_plotter import SimplePlotter
@@ -59,8 +60,15 @@ class SimpleReportGenerator(ReportGenerator):
 
         log.info("Generating summary table")
 
-        self._report.new_line(text="|Workload Name|Maximum Throughput|Latency (ms)|")
-        self._report.new_line(text="| :--- | ---: | ---: |")
+        headers: str = "|Workload Name|Maximum Throughput|Latency (ms)|"
+        alignment: str = "| :--- | ---: | ---: |"
+
+        if self._plot_resources:
+            alignment += " ---: |"
+            headers += "System CPU (%)|"
+
+        self._report.new_line(text=headers)
+        self._report.new_line(text=alignment)
 
         data_tables: dict[str, list[str]] = {}
         for _, operation in TITLE_CONVERSION.items():
@@ -72,9 +80,11 @@ class SimpleReportGenerator(ReportGenerator):
                 #    for file_path in self._data_files[file_name]:
                 log.debug("Looking at file %s", file_path)
                 (max_throughput, latency_ms) = get_latency_throughput_from_file(file_path)
+                (cpu_usage, _) = get_resource_details_from_file(file_path)
+                # Eventually we will return the memory usage here, but for the first pass we'll just grab CPU
 
                 (_, _, operation) = get_blocksize_percentage_operation_from_file_name(file_path.stem)
-                data: str = f"|[{file_path.stem}](#{file_path.stem.replace('_', '-')})|{max_throughput}|{latency_ms}|"
+                data: str = f"|[{file_path.stem}](#{file_path.stem.replace('_', '-')})|{max_throughput}|{latency_ms}|{cpu_usage}|"
 
                 data_tables[operation].append(data)
 
@@ -139,7 +149,7 @@ class SimpleReportGenerator(ReportGenerator):
 
             # If there are no plotfiles in the directory then we should create them
             if len(plot_files) == 0 or self._force_refresh:
-                plotter = SimplePlotter(str(directory.parent), self._plot_error_bars)
+                plotter = SimplePlotter(str(directory.parent), self._plot_error_bars, self._plot_resources)
                 plotter.draw_and_save()
                 plot_files.extend(list(directory.glob(f"*{PLOT_FILE_EXTENSION_WITH_DOT}")))
 
@@ -155,6 +165,13 @@ class SimpleReportGenerator(ReportGenerator):
         file_paths: list[Path] = [
             path for path in self._archive_directories[0].parents if f"{path}".endswith("/results")
         ]
+        # Because this can either be called ruring a run, or separately afterwards the
+        # archive directory passed may be at a different point in the directory tree.
+        # We therefore need to search both above and below the current directory for
+        # the config yaml
+        if len(file_paths) == 0:
+            file_paths = [path for path in self._archive_directories[0].iterdir() if f"{path}".endswith("/results")]
+
         yaml_file_path: list[Path] = list(file_paths[0].glob("**/cbt_config.yaml"))
 
         # This should only ever return a single path as each archive directory

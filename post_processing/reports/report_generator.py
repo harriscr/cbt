@@ -44,9 +44,11 @@ class ReportGenerator(ABC):
         output_directory: str,
         no_error_bars: bool = False,
         force_refresh: bool = False,
+        plot_resources: bool = False,
     ) -> None:
         self._plot_error_bars: bool = not no_error_bars
         self._force_refresh: bool = force_refresh
+        self._plot_resources: bool = plot_resources
 
         self._archive_directories: list[Path] = []
         self._data_directories: list[Path] = []

@@ -17,7 +17,7 @@ from post_processing.common import (
     read_intermediate_file,
 )
 from post_processing.plotter.common_format_plotter import CommonFormatPlotter
-from post_processing.types import CommonFormatDataType
+from post_processing.post_processing_types import CommonFormatDataType
 
 log: Logger = getLogger("plotter")
 
@@ -33,6 +33,7 @@ class FileComparisonPlotter(CommonFormatPlotter):
         self._output_directory: str = f"{output_directory}"
         self._comparison_files: list[Path] = [Path(file) for file in files]
         self._labels: Optional[list[str]] = None
+        super().__init__(plotter=plotter)
 
     def draw_and_save(self) -> None:
         output_file_path: str = self._generate_output_file_name(files=self._comparison_files)
@@ -55,17 +56,19 @@ class FileComparisonPlotter(CommonFormatPlotter):
             if label == "":
                 label = " ".join(operation_details)
 
-            self._add_single_file_data(plotter=plotter, file_data=file_data, label=label)
+            self._add_single_file_data_with_optional_errorbars(
+                file_data=file_data, label=label, plot_error_bars=False, plot_resource_usage=False
+            )
 
         # make sure we add the legend to the plot, below the chart
         plotter.legend(  # pyright: ignore[reportUnknownMemberType]
             bbox_to_anchor=(0.5, -0.1), loc="upper center", ncol=2
         )
 
-        self._add_title(plotter=plotter, source_files=self._comparison_files)
-        self._set_axis(plotter=plotter)
-        self._save_plot(plotter=plotter, file_path=output_file_path)
-        self._clear_plot(plotter=plotter)
+        self._add_title(source_files=self._comparison_files)
+        self._set_axis()
+        self._save_plot(file_path=output_file_path)
+        self._clear_plot()
 
     def set_labels(self, labels: list[str]) -> None:
         """

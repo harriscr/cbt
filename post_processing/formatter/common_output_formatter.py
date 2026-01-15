@@ -19,6 +19,8 @@ The output is a JSON file of the format:
                     runtime_seconds:
                     std_deviation:
                     total_ios:
+                    cpu
+
     }
     ...
     queue_depth_n {
@@ -28,6 +30,8 @@ The output is a JSON file of the format:
     latency_at_max_bandwidth:
     maximum_iops:
     latency_at_max_iops:
+    maximum_cpu_usage:
+    maximum_memory_usage:
 }
 
 The queue depth details are the sum of the details for write operation
@@ -40,10 +44,9 @@ from logging import Logger, getLogger
 from pathlib import Path
 from typing import Optional
 
-# pylint: disable=[no-name-in-module]
 from common import pdsh  # pyright: ignore[reportUnknownVariableType]
-from post_processing.formatter.benchmark_run_result import BenchmarkRunResult
-from post_processing.types import CommonFormatDataType, InternalFormattedOutputType
+from post_processing.post_processing_types import CommonFormatDataType, InternalFormattedOutputType
+from post_processing.run_result.benchmark import BenchmarkRunResult
 
 log: Logger = getLogger("formatter")
 
@@ -90,13 +93,14 @@ class CommonOutputFormatter:
             # When calling from CBT itself this archive dir already includes the testrun directory
             # so we should handle this case here
             testrun_directories: list[Path] = [self._path]
+            results: BenchmarkRunResult
             if "id-" not in f"{self._path}":
                 testrun_directories = list(self._path.glob(f"**/{testrun_id}"))
             if len(testrun_directories) > 1:
                 log.debug(
                     "We have more than one directory for test run %s so using the compatibility method", testrun_id
                 )
-                results: BenchmarkRunResult = BenchmarkRunResult(Path(self._directory), self._filename_root)
+                results = BenchmarkRunResult(Path(self._directory), self._filename_root)
 
                 results.process()
                 self._formatted_output.update(results.get())
@@ -108,9 +112,7 @@ class CommonOutputFormatter:
                     directory for directory in testrun_directory_path.iterdir() if directory.is_dir()
                 ]:
                     log.debug("Looking at results for directory %s", io_pattern_directory)
-                    results: BenchmarkRunResult = BenchmarkRunResult(
-                        directory=io_pattern_directory, file_name_root=self._filename_root
-                    )
+                    results = BenchmarkRunResult(directory=io_pattern_directory, file_name_root=self._filename_root)
                     results.process()
                     processed_results: InternalFormattedOutputType = results.get()
                     for run_type, run_data in processed_results.items():
@@ -120,16 +122,21 @@ class CommonOutputFormatter:
                         else:
                             self._formatted_output.update(results.get())
 
+            # add the resource usage class parsing calls here
+
         # get the max bandwidth and associated latency for each test run
         for _, operation_data in self._formatted_output.items():
             for _, blocksize_data in operation_data.items():
                 max_bandwidth, max_bandwidth_latency, max_iops, max_iops_latency = (
                     self._find_maximum_bandwidth_and_iops_with_latency(blocksize_data)
                 )
+                max_cpu, max_memory = self._find_max_resource_usage(blocksize_data)
                 blocksize_data["maximum_bandwidth"] = max_bandwidth
                 blocksize_data["latency_at_max_bandwidth"] = max_bandwidth_latency
                 blocksize_data["maximum_iops"] = max_iops
                 blocksize_data["latency_at_max_iops"] = max_iops_latency
+                blocksize_data["maximum_cpu_usage"] = max_cpu
+                blocksize_data["maximum_memory_usage"] = max_memory
 
     def write_output_file(self) -> None:
         """
@@ -220,11 +227,25 @@ class CommonOutputFormatter:
 
         return (f"{max_bandwidth}", f"{bandwidth_latency_ms}", f"{max_iops}", f"{iops_latency_ms}")
 
-    def _find_unique_results_directories(self) -> list[Path]:
+    def _find_max_resource_usage(self, test_run_data: CommonFormatDataType) -> tuple[str, str]:
         """
-        Find all the unique results directories that contain data for a single
-        run
+        Record the maxumum CPU usage and maximum memory usage for this workload
         """
-        unique_directories: list[Path] = []
+        max_cpu: float = 0
+        max_memory: float = 0
 
-        return unique_directories
+        for _, data in test_run_data.items():
+            if isinstance(data, dict):
+                max_cpu = max(max_cpu, float(data["cpu"]))
+                # max memory here, when we start recording it
+
+        return f"{max_cpu}", f"{max_memory}"
+
+    # def _find_unique_results_directories(self) -> list[Path]:
+    #    """
+    #    Find all the unique results directories that contain data for a single
+    #    run
+    #    """
+    #    unique_directories: list[Path] = []
+
+    #    return unique_directories

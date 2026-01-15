@@ -177,7 +177,16 @@ class ComparisonReportGenerator(ReportGenerator):
         file_paths: list[Path] = []
 
         for directory in self._archive_directories:
-            file_paths.extend([path for path in directory.parents if f"{path}".endswith("/results")])
+            # Because this can either be called ruring a run, or separately afterwards the
+            # archive directory passed may be at a different point in the directory tree.
+            # We therefore need to search both above and below the current directory for
+            # the config yaml
+            paths: list[Path] = [path for path in directory.parents if f"{path}".endswith("/results")]
+            if len(paths) == 0:
+                paths = [path for path in directory.iterdir() if f"{path}".endswith("/results")]
+
+            for path in paths:
+                file_paths.extend(path.glob("**/cbt_config.yaml"))
 
         return file_paths
 

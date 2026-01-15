@@ -2,7 +2,36 @@
 A file to contain common type definitions for use in the post-processing
 """
 
-from typing import Union
+from enum import Enum, auto
+from typing import NamedTuple, Union
+
+
+class CPUPlotType(Enum):
+    """
+    The different options for producing a plot of CPU data.
+    """
+
+    NOCPU = 0
+    OVERALL = auto()
+    OSD = auto()
+    FIO = auto()
+    NODES = auto()
+
+
+class ReportOptions(NamedTuple):
+    """
+    This class is used to store the options required to create a report.
+    """
+
+    archives: list[str]
+    output_directory: str
+    results_file_root: str
+    create_pdf: bool
+    force_refresh: bool
+    no_error_bars: bool
+    comparison: bool
+    plot_resources: bool
+
 
 # Log setup types
 HandlerType = dict[str, dict[str, str]]

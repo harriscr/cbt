@@ -59,11 +59,12 @@ from argparse import ArgumentParser
 from logging import Logger, getLogger
 
 from post_processing.log_configuration import setup_logging
-from post_processing.report import Report, ReportOptions, parse_namespace_to_options
+from post_processing.post_processing_types import ReportOptions
+from post_processing.report import Report, parse_namespace_to_options
 
 setup_logging()
-
 log: Logger = getLogger("reports")
+log.info("=== Starting Post Processing of CBT results ===")
 
 
 def main() -> int:
@@ -118,6 +119,13 @@ def main() -> int:
         action="store_true",
         required=False,
         help="Regenerate the intermediate files and plots, even if they exist",
+    )
+
+    parser.add_argument(
+        "--plot_resources",
+        action="store_true",
+        required=False,
+        help="Add a line for resource usage to the plots, if details are avaialable",
     )
 
     report_options: ReportOptions = parse_namespace_to_options(arguments=parser.parse_args())
