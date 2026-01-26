@@ -7,6 +7,7 @@ produce a hockey-stick curve graph
 from pathlib import Path
 
 import matplotlib.pyplot as plotter
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from post_processing.common import (
@@ -37,8 +38,16 @@ class SimplePlotter(CommonFormatPlotter):
         for file_path in self._path.glob(f"*{DATA_FILE_EXTENSION_WITH_DOT}"):
             file_data: CommonFormatDataType = read_intermediate_file(f"{file_path}")
             output_file_path: str = self._generate_output_file_name(files=[file_path])
-            figure: Figure = self._add_single_file_data_with_optional_errorbars(
-                file_data=file_data, plot_error_bars=self._plot_error_bars, plot_resource_usage=self._plot_resources
+
+            figure: Figure
+            io_axis: Axes
+            figure, io_axis = self._plotter.subplots()
+
+            self._add_single_file_data_with_optional_errorbars(
+                file_data=file_data,
+                main_axes=io_axis,
+                plot_error_bars=self._plot_error_bars,
+                plot_resource_usage=self._plot_resources,
             )
             self._add_title(source_files=[file_path])
             self._set_axis()

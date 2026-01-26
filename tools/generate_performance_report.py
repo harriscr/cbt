@@ -40,6 +40,9 @@ Input:
         --force_refresh         [Optional] Generate the intermediate and plot files
                                     from the raw data, even if they already exist
 
+        --plot_resources        [Optional] Also draw CPU and memory usage, as recorded
+                                    by fio on the plots
+
 Examples:
 
     Generate a markdown report file for the results in '/tmp/squid_main' directory

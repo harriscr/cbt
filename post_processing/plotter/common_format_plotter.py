@@ -13,7 +13,6 @@ from types import ModuleType  # pylint: disable=[no-name-in-module]
 from typing import Optional
 
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 
 from post_processing.common import (
     DATA_FILE_EXTENSION_WITH_DOT,
@@ -25,8 +24,6 @@ from post_processing.plotter.io_plotter import IOPlotter
 from post_processing.post_processing_types import CommonFormatDataType, PlotDataType
 
 log: Logger = getLogger("plotter")
-
-CPU_PLOT_DEFAULT_COLOUR: str = "#5ca904"
 
 
 # pylint: disable=too-few-public-methods, too-many-locals
@@ -120,11 +117,12 @@ class CommonFormatPlotter(ABC):
 
     def _set_axis(self, maximum_values: Optional[tuple[int, int]] = None) -> None:
         """
-        Set the range for the plot axes.
-
-        maximum_values is a
-
-        This will start from 0, with a maximum
+        Set the range for the plot axes starting from 0.
+        
+        Args:
+            maximum_values: Optional tuple of (maximum_x, maximum_y) values.
+                           If None, matplotlib will auto-scale the axes.
+                           If provided, sets explicit limits for both axes.
         """
         maximum_x: Optional[int] = None
         maximum_y: Optional[int] = None
@@ -153,13 +151,15 @@ class CommonFormatPlotter(ABC):
 
         return sorted_plot_data
 
+    
     def _add_single_file_data_with_optional_errorbars(
         self,
         file_data: CommonFormatDataType,
+        main_axes: Axes,
         plot_error_bars: bool = False,
         plot_resource_usage: bool = False,
         label: Optional[str] = None,
-    ) -> Figure:
+    ) -> None:
         """
         Add the data from a single file to a plot. Include error bars. Each point
         in the plot is the latency vs IOPs or bandwidth for a given queue depth.
@@ -168,12 +168,8 @@ class CommonFormatPlotter(ABC):
         """
         io_plot_label: str = label if label else "IO Details"
 
-        figure: Figure
-        io_axis: Axes
-        figure, io_axis = self._plotter.subplots()
-
-        cpu_plotter: CPUPlotter = CPUPlotter(main_axis=io_axis)
-        io_plotter: IOPlotter = IOPlotter(main_axis=io_axis)
+        cpu_plotter: CPUPlotter = CPUPlotter(main_axis=main_axes)  # io_axis)
+        io_plotter: IOPlotter = IOPlotter(main_axis=main_axes)  # io_axis)
         io_plotter.y_label = "Latency (ms)"
         io_plotter.plot_label = io_plot_label
 
@@ -190,10 +186,10 @@ class CommonFormatPlotter(ABC):
             if blocksize >= 64:
                 # convert bytes to Mb, not Mib, so use 1000s rather than 1024
                 x_data.append(float(data["bandwidth_bytes"]) / (1000 * 1000))
-                io_axis.set_xlabel("Bandwidth (MB/s)")  # pyright: ignore[reportUnknownMemberType]
+                main_axes.set_xlabel("Bandwidth (MB/s)")  # pyright: ignore[reportUnknownMemberType]
             else:
                 x_data.append(float(data["iops"]))
-                io_axis.set_xlabel("IOps")  # pyright: ignore[reportUnknownMemberType]
+                main_axes.set_xlabel("IOps")  # pyright: ignore[reportUnknownMemberType]
                 # The stored values are in ns, we want to convert to ms
 
             io_plotter.add_y_data(data["latency"])
@@ -220,8 +216,6 @@ class CommonFormatPlotter(ABC):
         if plot_resource_usage:
             cpu_plotter.plot(x_data=x_data)
 
-        return figure
-
     def _save_plot(self, file_path: str) -> None:
         """
         save the plot to disk as a svg file
@@ -236,4 +230,4 @@ class CommonFormatPlotter(ABC):
         Clear the plot data
         """
         self._plotter.close()
-        self._plotter.clf()
+        # self._plotter.clf()

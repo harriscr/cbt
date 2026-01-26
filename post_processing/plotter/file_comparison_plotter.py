@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib.pyplot as plotter
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from post_processing.common import (
     DATA_FILE_EXTENSION_WITH_DOT,
@@ -38,6 +40,9 @@ class FileComparisonPlotter(CommonFormatPlotter):
     def draw_and_save(self) -> None:
         output_file_path: str = self._generate_output_file_name(files=self._comparison_files)
 
+        figure: Figure
+        io_axis: Axes
+        figure, io_axis = self._plotter.subplots()
         for file_path in self._comparison_files:
             index: int = self._comparison_files.index(file_path)
             file_data: CommonFormatDataType = read_intermediate_file(f"{file_path}")
@@ -57,11 +62,11 @@ class FileComparisonPlotter(CommonFormatPlotter):
                 label = " ".join(operation_details)
 
             self._add_single_file_data_with_optional_errorbars(
-                file_data=file_data, label=label, plot_error_bars=False, plot_resource_usage=False
+                file_data=file_data, main_axes=io_axis, label=label, plot_error_bars=False, plot_resource_usage=False
             )
 
         # make sure we add the legend to the plot, below the chart
-        plotter.legend(  # pyright: ignore[reportUnknownMemberType]
+        figure.legend(  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownMemberType]
             bbox_to_anchor=(0.5, -0.1), loc="upper center", ncol=2
         )
 

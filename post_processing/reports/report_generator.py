@@ -29,7 +29,7 @@ log: Logger = getLogger("reports")
 class ReportGenerator(ABC):
     """
     The base class for all classes responsible for generating a markdown and
-    pdf report
+    PDF report
     """
 
     MARKDOWN_FILE_EXTENSION: str = "md"
@@ -181,7 +181,7 @@ class ReportGenerator(ABC):
     def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: Optional[int] = 0) -> list[Path]:
         """
         Given the search_pattern find all the files in a Path that match
-        that pattern, and terutn them as a list sorted numerically by file
+        that pattern, and return them as a list sorted numerically by file
         name
         """
 

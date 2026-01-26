@@ -8,6 +8,8 @@ from logging import Logger, getLogger
 from pathlib import Path
 
 import matplotlib.pyplot as plotter
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from post_processing.common import (
     PLOT_FILE_EXTENSION_WITH_DOT,
@@ -43,23 +45,30 @@ class DirectoryComparisonPlotter(CommonFormatPlotter):
 
         for file_name in common_file_names:
             output_file_path: str = self._generate_output_file_name(files=[Path(file_name)])
+
+            figure: Figure
+            io_axis: Axes
+            figure, io_axis = self._plotter.subplots()
+
             for directory in self._comparison_directories:
                 file_data: CommonFormatDataType = read_intermediate_file(f"{directory}/{file_name}")
                 # we choose the last directory name for the label to apply to the data
+                # figure = self._add_single_file_data_with_optional_errorbars(
                 self._add_single_file_data_with_optional_errorbars(
                     file_data=file_data,
+                    main_axes=io_axis,
                     label=f"{directory.parts[-2]}",
                     plot_error_bars=False,
                     plot_resource_usage=False,
                 )
 
-            self._add_title(source_files=[Path(file_name)])
-            self._set_axis()
-
             # make sure we add the legend to the plot
-            plotter.legend(  # pyright: ignore[reportUnknownMemberType]
+            figure.legend(  # pyright: ignore[reportUnknownMemberType, reportPossiblyUnboundVariable]
                 bbox_to_anchor=(0.5, -0.1), loc="upper center", ncol=2
             )
+
+            self._add_title(source_files=[Path(file_name)])
+            self._set_axis()
 
             self._save_plot(file_path=output_file_path)
             self._clear_plot()
