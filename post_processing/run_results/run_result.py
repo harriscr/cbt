@@ -19,8 +19,7 @@ from post_processing.post_processing_types import (
 )
 from post_processing.run_results.benchmark_result import BenchmarkResult
 from post_processing.run_results.resource_result import ResourceResult
-
-# from post_processing.run_results.resources.resource_result import ResourceResult
+from post_processing.run_results.resource_result_factory import get_all_resources
 
 log: Logger = getLogger("formatter")
 
@@ -218,7 +217,7 @@ class RunResult(ABC):
         test_config: tuple[str, str, str, str],
         io_details: IodepthDataType,
         global_details: dict[str, str],
-        resource_data: dict[str, str],
+        resource_data: dict[str, dict[str, str]],
     ) -> InternalNumJobsDataType:
         """
         Build the complete nested data structure for a test result.
@@ -227,7 +226,8 @@ class RunResult(ABC):
             test_config: Tuple of (operation, blocksize, iodepth, number_of_jobs)
             io_details: Merged IO performance details
             global_details: Global benchmark options
-            resource_data: Resource usage statistics
+            resource_data: Resource usage statistics with structure:
+                          {"cpu": {"source1": "value1", ...}, "memory": {...}}
 
         Returns:
             Nested dictionary structure: {numjobs: {blocksize: {iodepth: data}}}
@@ -235,10 +235,11 @@ class RunResult(ABC):
         _, blocksize, iodepth, number_of_jobs = test_config
 
         # Build from innermost to outermost level
+        # Merge all data including the nested resource data
         iodepth_data = {**global_details, **io_details, **resource_data}
         iodepth_details = {iodepth: iodepth_data}
         blocksize_details = cast(InternalBlocksizeDataType, {blocksize: iodepth_details})
-        numjobs_details = cast(InternalNumJobsDataType, {number_of_jobs: blocksize_details})
+        numjobs_details: InternalNumJobsDataType = {number_of_jobs: blocksize_details}
 
         return numjobs_details
 
@@ -384,6 +385,28 @@ class RunResult(ABC):
         self._timeseries_by_directory.clear()
         log.debug("Cleared timeseries data from memory")
 
+    def _collect_multi_source_resources(self, resources: list[ResourceResult]) -> dict[str, dict[str, str]]:
+        """
+        Collect resource data from multiple sources into nested dict format.
+
+        Args:
+            resources: List of ResourceResult instances
+
+        Returns:
+            Dict with structure: {"cpu": {"source1": "value1", ...}, "memory": {...}}
+        """
+        cpu_data: dict[str, str] = {}
+        memory_data: dict[str, str] = {}
+
+        for resource in resources:
+            source = resource.source
+            resource_dict = resource.get()
+
+            cpu_data[source] = resource_dict.get("cpu", "0.00")
+            memory_data[source] = resource_dict.get("memory", "0.00")
+
+        return {"cpu": cpu_data, "memory": memory_data}
+
     def _convert_file(self, file_path: Path) -> None:
         """
         Convert an individual benchmark result file to the common intermediate format.
@@ -391,6 +414,8 @@ class RunResult(ABC):
         This method reads the benchmark output file, extracts IO and resource usage
         statistics, and stores them in the internal data structure organized by
         operation type, blocksize, and IO depth.
+
+        Now supports multiple resource sources (FIO, Collectl, etc.) simultaneously.
 
         If include_timeseries is True, also extracts time-series data from log files.
 
@@ -402,17 +427,22 @@ class RunResult(ABC):
             KeyError: If required data fields are missing from results
         """
         try:
-            # Use factory methods to get the correct classes
+            # Use factory method for benchmark result
             io: BenchmarkResult = self._create_benchmark_result(file_path)
-            resource: ResourceResult = self._create_resource_result(file_path)
+
+            # Get ALL available resource sources using factory
+            resources: list[ResourceResult] = get_all_resources(file_path)
 
             test_config = self._extract_test_configuration(io)
 
             # Merge IO details with existing data if present
             io_details = self._merge_io_details(test_config, io.io_details)
 
+            # Collect resource data from all sources
+            resource_data = self._collect_multi_source_resources(resources)
+
             # Build complete test result data structure
-            numjobs_details = self._build_test_result_data(test_config, io_details, io.global_options, resource.get())
+            numjobs_details = self._build_test_result_data(test_config, io_details, io.global_options, resource_data)
 
             # Update internal processed data
             self._update_processed_data(test_config, numjobs_details)
