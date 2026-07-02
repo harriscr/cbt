@@ -10,8 +10,8 @@ import pytest
 from monitoring.blktrace_monitoring import BlktraceMonitoring
 from monitoring.collectl_monitoring import CollectlMonitoring
 from monitoring.monitoring_factory import MonitoringFactory
-from monitoring.perf_monitoring import PerfMonitoring
-from monitoring.top_monitoring import TopMonitoring
+from monitoring.perf_monitoring import OsdPerfMonitoring, PerfMonitoring
+from monitoring.top_monitoring import OsdTopMonitoring, TopMonitoring
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,7 +38,7 @@ def _stub_monitor() -> MagicMock:
 
 def test_get_object_returns_collectl_monitoring() -> None:
     """get_object('collectl') returns a CollectlMonitoring instance."""
-    with patch("monitoring.base.settings") as mock_base_settings:
+    with patch("monitoring.monitoring.settings") as mock_base_settings:
         mock_base_settings.getnodes.return_value = "node1"
         instance = MonitoringFactory.get_object("collectl", {})
     assert isinstance(instance, CollectlMonitoring)
@@ -47,7 +47,7 @@ def test_get_object_returns_collectl_monitoring() -> None:
 def test_get_object_returns_perf_monitoring() -> None:
     """get_object('perf') returns a PerfMonitoring instance."""
     with (
-        patch("monitoring.base.settings") as mock_base_settings,
+        patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.perf_monitoring.settings") as mock_settings,
     ):
         mock_base_settings.getnodes.return_value = "node1"
@@ -59,7 +59,7 @@ def test_get_object_returns_perf_monitoring() -> None:
 def test_get_object_returns_blktrace_monitoring() -> None:
     """get_object('blktrace') returns a BlktraceMonitoring instance."""
     with (
-        patch("monitoring.base.settings") as mock_base_settings,
+        patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.blktrace_monitoring.settings") as mock_settings,
     ):
         mock_base_settings.getnodes.return_value = "node1"
@@ -71,13 +71,37 @@ def test_get_object_returns_blktrace_monitoring() -> None:
 def test_get_object_returns_top_monitoring() -> None:
     """get_object('top') returns a TopMonitoring instance."""
     with (
-        patch("monitoring.base.settings") as mock_base_settings,
+        patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.top_monitoring.settings") as mock_settings,
     ):
         mock_base_settings.getnodes.return_value = "node1"
         mock_settings.cluster.get.return_value = "dummy"
         instance = MonitoringFactory.get_object("top", {})
     assert isinstance(instance, TopMonitoring)
+
+
+def test_get_object_returns_osd_top_monitoring() -> None:
+    """get_object('osd_top') returns an OsdTopMonitoring instance."""
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.top_monitoring.settings") as mock_settings,
+    ):
+        mock_base_settings.getnodes.return_value = "node1"
+        mock_settings.cluster.get.return_value = "dummy"
+        instance = MonitoringFactory.get_object("osd_top", {})
+    assert isinstance(instance, OsdTopMonitoring)
+
+
+def test_get_object_returns_osd_perf_monitoring() -> None:
+    """get_object('osd_perf') returns an OsdPerfMonitoring instance."""
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+    ):
+        mock_base_settings.getnodes.return_value = "node1"
+        mock_settings.cluster.get.return_value = "dummy"
+        instance = MonitoringFactory.get_object("osd_perf", {})
+    assert isinstance(instance, OsdPerfMonitoring)
 
 
 def test_get_object_raises_for_unknown_key() -> None:

@@ -1,15 +1,15 @@
 """Factory class for creating and managing monitoring backends."""
 
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from typing import Any, ClassVar, Optional
 
 import settings
-from monitoring.base import Monitoring
 from monitoring.blktrace_monitoring import BlktraceMonitoring
 from monitoring.collectl_monitoring import CollectlMonitoring
-from monitoring.perf_monitoring import PerfMonitoring
-from monitoring.top_monitoring import TopMonitoring
+from monitoring.monitoring import Monitoring
+from monitoring.perf_monitoring import OsdPerfMonitoring, PerfMonitoring
+from monitoring.top_monitoring import OsdTopMonitoring, TopMonitoring
 
 
 class MonitoringFactory:
@@ -18,8 +18,10 @@ class MonitoringFactory:
     _REGISTRY: ClassVar[dict[str, type[Monitoring]]] = {
         "collectl": CollectlMonitoring,
         "perf": PerfMonitoring,
+        "osd_perf": OsdPerfMonitoring,
         "blktrace": BlktraceMonitoring,
         "top": TopMonitoring,
+        "osd_top": OsdTopMonitoring,
     }
 
     @classmethod
@@ -54,7 +56,7 @@ class MonitoringFactory:
 
     @classmethod
     @contextmanager
-    def monitor(cls, directory: str) -> Iterator[None]:
+    def monitor(cls, directory: str) -> Generator[None, None, None]:
         """Context manager: start all monitors, yield, then stop all."""
         monitors = list(cls.get_all())
         for monitor in monitors:

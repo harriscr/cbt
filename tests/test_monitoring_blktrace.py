@@ -18,7 +18,7 @@ def _make_monitor(
     if mconfig is None:
         mconfig = {}
     with (
-        patch("monitoring.base.settings") as mock_base_settings,
+        patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.blktrace_monitoring.settings") as mock_settings,
         patch("monitoring.blktrace_monitoring.common.pdsh"),
     ):
@@ -50,7 +50,7 @@ def test_start_creates_directory_and_starts_traces() -> None:
     trace_runner = MagicMock()
 
     with (
-        patch("monitoring.base.settings") as mock_base_settings,
+        patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.blktrace_monitoring.settings") as mock_settings,
         patch("monitoring.blktrace_monitoring.common.pdsh") as mock_pdsh,
     ):

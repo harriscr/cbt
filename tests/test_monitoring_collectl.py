@@ -9,7 +9,7 @@ from monitoring.collectl_monitoring import CollectlMonitoring
 
 def test_init_sets_default_args() -> None:
     """Use the default collectl argument string when args are not configured."""
-    with patch("monitoring.base.settings") as mock_settings:
+    with patch("monitoring.monitoring.settings") as mock_settings:
         mock_settings.getnodes.return_value = "resolved-nodes"
 
         monitor = CollectlMonitoring({})
@@ -19,7 +19,7 @@ def test_init_sets_default_args() -> None:
 
 def test_init_uses_custom_args() -> None:
     """Use custom collectl args from monitoring config when provided."""
-    with patch("monitoring.base.settings") as mock_settings:
+    with patch("monitoring.monitoring.settings") as mock_settings:
         mock_settings.getnodes.return_value = "resolved-nodes"
 
         monitor = CollectlMonitoring({"args": "--custom {collectl_dir}"})
@@ -31,7 +31,7 @@ def test_start_creates_directory_and_starts_collectl() -> None:
     """Create the collectl directory and invoke collectl through pdsh."""
     mkdir_runner = MagicMock()
     with (
-        patch("monitoring.base.settings") as mock_settings,
+        patch("monitoring.monitoring.settings") as mock_settings,
         patch("monitoring.collectl_monitoring.common.pdsh") as mock_pdsh,
     ):
         mock_settings.getnodes.return_value = "resolved-nodes"
@@ -52,7 +52,7 @@ def test_stop_calls_pdsh_with_collectl_pkill() -> None:
     """Stop collectl processes through pdsh."""
     stop_runner = MagicMock()
     with (
-        patch("monitoring.base.settings") as mock_settings,
+        patch("monitoring.monitoring.settings") as mock_settings,
         patch("monitoring.collectl_monitoring.common.pdsh", return_value=stop_runner) as mock_pdsh,
     ):
         mock_settings.getnodes.return_value = "resolved-nodes"

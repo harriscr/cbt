@@ -3,7 +3,7 @@
 from typing import Any, ClassVar, Optional
 
 import common
-from monitoring.base import Monitoring
+from monitoring.monitoring import Monitoring
 
 
 class CollectlMonitoring(Monitoring):

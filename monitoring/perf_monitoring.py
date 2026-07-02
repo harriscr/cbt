@@ -8,13 +8,17 @@ from typing import Any, ClassVar, Optional, cast
 
 import common
 import settings
-from monitoring.base import Monitoring
+from monitoring.monitoring import Monitoring
 
 logger = logging.getLogger("cbt")
 
 
 class PerfMonitoring(Monitoring):
-    """Monitoring backend that captures perf output."""
+    """Monitoring backend that captures perf output.
+
+    Runs ``perf`` with a caller-supplied ``args`` template.  For OSD-specific
+    PID discovery use :class:`OsdPerfMonitoring` instead.
+    """
 
     DEFAULT_NODES: ClassVar[list[str]] = ["osds"]
 
@@ -22,8 +26,6 @@ class PerfMonitoring(Monitoring):
         """Initialize perf monitoring configuration."""
         super().__init__(mconfig)
         # Remove these casts once settings.cluster.get() is fully typed.
-        self._pid_dir = cast(str, settings.cluster.get("pid_dir"))
-        self._pid_glob = mconfig.get("pid_glob", "osd.*.pid")
         self._user = cast(str, settings.cluster.get("user"))
         self._perf_cmd = mconfig.get("perf_cmd", "sudo perf")
         self._args_template = mconfig.get("args")
@@ -36,25 +38,13 @@ class PerfMonitoring(Monitoring):
         self._perf_dir = perf_dir
         common.pdsh(self._nodes, f"mkdir -p -m0755 -- {perf_dir}").communicate()  # type: ignore[no-untyped-call]
 
-        perf_template = f"{self._perf_cmd} {self._args_template} &"
+        perf_cmd = f"{self._perf_cmd} {self._args_template} &".format(perf_dir=perf_dir)
         local_node = common.get_localnode(self._nodes)  # type: ignore[no-untyped-call]
         if local_node:
-            logger.debug("PerfMonitoring: in local_node")
-            logger.debug("pid_dir: %s", self._pid_dir)
-            for pid_path in glob.glob(os.path.join(self._pid_dir, self._pid_glob)):
-                logger.debug("PerfMonitoring pid_path: %s", pid_path)
-                with open(pid_path, encoding="utf-8") as pidfile:
-                    pid = pidfile.read().strip()
-                    perf_cmd = perf_template.format(perf_dir=perf_dir, pid=pid)
-                    runner = common.sh(local_node, perf_cmd)  # type: ignore[no-untyped-call]
-                    self._perf_runners.append(runner)
+            runner = common.sh(local_node, perf_cmd)  # type: ignore[no-untyped-call]
+            self._perf_runners.append(runner)
         else:
-            logger.debug("PerfMonitoring: remote_node")
-            perf_cmd = perf_template.format(perf_dir=perf_dir, pid="${pid}")
-            common.pdsh(  # type: ignore[no-untyped-call]
-                self._nodes,
-                [f"for pid in `cat {self._pid_dir}/{self._pid_glob}`;", "do", perf_cmd, ";", "done"],
-            )
+            common.pdsh(self._nodes, perf_cmd)  # type: ignore[no-untyped-call]
 
     def stop(self, directory: Optional[str]) -> None:
         """Stop perf collection and adjust file ownership when needed."""
@@ -85,3 +75,42 @@ class PerfMonitoring(Monitoring):
                 return None
             total_cpu_cycles = total_cpu_cycles + int(cpu_cycles.replace(",", ""))
         return cast(Optional[int], total_cpu_cycles)
+
+
+class OsdPerfMonitoring(PerfMonitoring):
+    """PerfMonitoring specialised for Ceph OSD processes.
+
+    Discovers the target PIDs by scanning PID files matching ``pid_glob``
+    inside ``pid_dir`` (read from ``settings.cluster``), then launches a
+    separate ``perf`` invocation per OSD PID.
+    """
+
+    def __init__(self, mconfig: dict[str, Any]) -> None:
+        """Initialize OSD perf monitoring configuration."""
+        super().__init__(mconfig)
+        self._pid_dir = cast(str, settings.cluster.get("pid_dir"))
+        self._pid_glob = mconfig.get("pid_glob", "osd.*.pid")
+
+    def start(self, directory: str) -> None:
+        """Create the perf output directory and start a perf instance per OSD PID."""
+        perf_dir = f"{directory}/perf"
+        self._perf_dir = perf_dir
+        common.pdsh(self._nodes, f"mkdir -p -m0755 -- {perf_dir}").communicate()  # type: ignore[no-untyped-call]
+
+        perf_template = f"{self._perf_cmd} {self._args_template} &"
+        local_node = common.get_localnode(self._nodes)  # type: ignore[no-untyped-call]
+        if local_node:
+            logger.debug("OsdPerfMonitoring: local_node pid_dir=%s", self._pid_dir)
+            for pid_path in glob.glob(os.path.join(self._pid_dir, self._pid_glob)):
+                with open(pid_path, encoding="utf-8") as pidfile:
+                    pid = pidfile.read().strip()
+                    perf_cmd = perf_template.format(perf_dir=perf_dir, pid=pid)
+                    runner = common.sh(local_node, perf_cmd)  # type: ignore[no-untyped-call]
+                    self._perf_runners.append(runner)
+        else:
+            logger.debug("OsdPerfMonitoring: remote_node")
+            perf_cmd = perf_template.format(perf_dir=perf_dir, pid="${pid}")
+            common.pdsh(  # type: ignore[no-untyped-call]
+                self._nodes,
+                [f"for pid in `cat {self._pid_dir}/{self._pid_glob}`;", "do", perf_cmd, ";", "done"],
+            )

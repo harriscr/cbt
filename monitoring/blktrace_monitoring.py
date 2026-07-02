@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Optional, cast
 
 import common
 import settings
-from monitoring.base import Monitoring
+from monitoring.monitoring import Monitoring
 
 logger = logging.getLogger("cbt")
 
