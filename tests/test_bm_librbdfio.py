@@ -1,8 +1,11 @@
 """ Unit tests for the Benchmarklibrbdfio class """
 
+import tempfile
 import unittest
 import hashlib
 import json
+from pathlib import Path
+from unittest.mock import patch
 import benchmarkfactory
 import settings
 from cluster.ceph import Ceph
@@ -16,7 +19,7 @@ class TestBenchmarklibrbdfio(unittest.TestCase):
     cl_name = "tools/invariant.yaml"
     bl_name = "tools/baseline.json"
     bl_json = {}
-    bl_md5 = '1bca3b68efeb5a9c72c23efa2815dce8'
+    bl_md5 = 'c0dec7e8ec2553ba9aa2c8e9ccddc50f'
     md5_returned = None
 
     @classmethod
@@ -333,6 +336,106 @@ class TestBenchmarklibrbdfio(unittest.TestCase):
         b = benchmarkfactory.get_object(self.archive_dir,
                                             self.cluster, 'librbdfio', self.iteration)
         self.assertEqual(self.bl_json['librbdfio']['wait_pgautoscaler_timeout'], b.__dict__['wait_pgautoscaler_timeout'])
+
+class TestLibrbdFioParse(unittest.TestCase):
+    """Tests for LibrbdFio.parse() and analyze()"""
+
+    # fio --output-format=json (pure JSON, no surrounding text)
+    _JSON_ONLY = (
+        '{\n'
+        '  "fio version" : "fio-3.35",\n'
+        '  "jobs" : [{"read": {"io_bytes": 1234}}]\n'
+        '}\n'
+    )
+
+    # fio --output-format=json,normal (JSON embedded in human-readable text)
+    _JSON_NORMAL = (
+        'fio-3.35\nStarting 1 process\n\n'
+        '{\n'
+        '  "fio version" : "fio-3.35",\n'
+        '  "jobs" : [{"read": {"io_bytes": 1234}}]\n'
+        '}\n\n'
+        'Run status group 0 (all jobs):\n'
+    )
+
+    _EXPECTED = (
+        '{\n'
+        '  "fio version" : "fio-3.35",\n'
+        '  "jobs" : [{"read": {"io_bytes": 1234}}]\n'
+        '}\n'
+    )
+
+    def _make_instance(self, archive_dir: str):
+        """Return a LibrbdFio instance with archive_dir set, bypassing __init__."""
+        with (
+            patch('settings.cluster', {'tmp_dir': '/tmp'}),
+            patch('settings.getnodes', return_value='client1'),
+        ):
+            from benchmark.librbdfio import LibrbdFio  # pylint: disable=import-outside-toplevel
+            instance = LibrbdFio.__new__(LibrbdFio)
+            instance.archive_dir = archive_dir
+            return instance
+
+    def test_parse_pure_json(self):
+        """parse() extracts the JSON block from --output-format=json output"""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'output.0').write_text(self._JSON_ONLY, encoding='utf-8')
+            instance = self._make_instance(tmp)
+            instance.parse(tmp)
+            result = (Path(tmp) / 'json_output.0').read_text(encoding='utf-8')
+            self.assertEqual(result, self._EXPECTED)
+
+    def test_parse_json_normal(self):
+        """parse() extracts the JSON block from --output-format=json,normal output"""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'output.0').write_text(self._JSON_NORMAL, encoding='utf-8')
+            instance = self._make_instance(tmp)
+            instance.parse(tmp)
+            result = (Path(tmp) / 'json_output.0').read_text(encoding='utf-8')
+            self.assertEqual(result, self._EXPECTED)
+
+    def test_parse_multiple_files(self):
+        """parse() processes every output.N file in the archive directory"""
+        with tempfile.TemporaryDirectory() as tmp:
+            for i in range(3):
+                (Path(tmp) / f'output.{i}').write_text(self._JSON_ONLY, encoding='utf-8')
+            instance = self._make_instance(tmp)
+            instance.parse(tmp)
+            for i in range(3):
+                self.assertTrue((Path(tmp) / f'json_output.{i}').exists())
+
+    def test_parse_ignores_non_output_files(self):
+        """parse() does not process files that don't match output.N"""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'output.0').write_text(self._JSON_ONLY, encoding='utf-8')
+            (Path(tmp) / 'benchmark_config.yaml').write_text('mode: write\n', encoding='utf-8')
+            instance = self._make_instance(tmp)
+            instance.parse(tmp)
+            produced = list(Path(tmp).glob('json_output.*'))
+            self.assertEqual(len(produced), 1)
+
+    def test_parse_uses_archive_dir_not_argument(self):
+        """LibrbdFio.parse() searches self.archive_dir, not the out_dir argument"""
+        with (
+            tempfile.TemporaryDirectory() as archive,
+            tempfile.TemporaryDirectory() as other,
+        ):
+            (Path(archive) / 'output.0').write_text(self._JSON_ONLY, encoding='utf-8')
+            instance = self._make_instance(archive)
+            # Pass a different directory — parse() must still use self.archive_dir
+            instance.parse(other)
+            self.assertTrue((Path(archive) / 'json_output.0').exists())
+            self.assertFalse(any(Path(other).glob('json_output.*')))
+
+    def test_analyze_calls_parse(self):
+        """analyze() delegates to parse() with the same out_dir"""
+        with tempfile.TemporaryDirectory() as tmp:
+            instance = self._make_instance(tmp)
+            results = []
+            instance.parse = lambda d: results.append(d)  # type: ignore[method-assign]
+            instance.analyze(tmp)
+            self.assertEqual(results, [tmp])
+
 
 if __name__ == '__main__':
     unittest.main()

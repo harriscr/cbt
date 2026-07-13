@@ -32,7 +32,9 @@ benchmarks:
       # What is the filesystem
       client_fs: xfs
       concurrent_procs: 1
-      fio_cmd: '/usr/bin/fio'
-      block_devices: [/dev/vdb]
-#      block_devices: [/dev/sda, /dev/sdb, /dev/sdc, /dev/sdd, /dev/sde, /dev/sdf, /dev/sdg, /dev/sdh, /dev/sdi, /dev/sdj, /dev/sdk, /dev/sdl, /dev/sdm, /dev/sdn]
+      cmd_path: '/usr/bin/fio'
+      # Comma-separated list of block devices to use. Multiple devices are
+      # selected round-robin across concurrent_procs.
+      block_devices: /dev/vdb
+#      block_devices: /dev/sda,/dev/sdb,/dev/sdc,/dev/sdd,/dev/sde,/dev/sdf,/dev/sdg,/dev/sdh,/dev/sdi,/dev/sdj,/dev/sdk,/dev/sdl,/dev/sdm,/dev/sdn
 

@@ -1,8 +1,13 @@
+import re
 import common
 import settings
 import monitoring
 import time
 import logging
+from pathlib import Path
+from typing import Union
+
+from post_processing.report import Report, ReportOptions
 
 from .benchmark import Benchmark
 
@@ -31,11 +36,15 @@ class RawFio(Benchmark):
         self.rwmixwrite = 100 - self.rwmixread
         self.ioengine = config.get('ioengine', 'libaio')
         self.op_size = config.get('op_size', 4194304)
-        self.vol_size = config.get('vol_size', 65536) * 0.9
-        self.fio_cmd = config.get('fio_cmd', 'sudo /usr/bin/fio')
+        self.vol_size = config.get('vol_size', 65536)
+        self.cmd_path = config.get('cmd_path', '/usr/bin/fio')
         # FIXME there are too many permutations, need to put results in SQLITE3
-        self.run_dir = '%sraw_ra-%08d/op_size-%08d/concurrent_procs-%03d/iodepth-%03d/%s' % (self.run_dir, int(self.osd_ra), int(self.op_size), int(self.total_procs), int(self.iodepth), self.mode)
-        self.out_dir = '%s/raw_ra-%08d/op_size-%08d/concurrent_procs-%03d/iodepth-%03d/%s' % (self.archive_dir, int(self.osd_ra), int(self.op_size), int(self.total_procs), int(self.iodepth), self.mode)
+        if not self._workloads.exist():
+            self.run_dir = (
+                f"{self.run_dir}raw_ra-{int(self.osd_ra):08d}/op_size-{int(self.op_size):08d}/"
+                f"concurrent_procs-{int(self.total_procs):03d}/iodepth-{int(self.iodepth):03d}/{self.mode}"
+            )
+        self.out_dir = self.archive_dir
 
     # def exists(self):
     #     if os.path.exists(self.out_dir):
@@ -45,6 +54,8 @@ class RawFio(Benchmark):
 
     def initialize(self):
         super(RawFio, self).initialize()
+        if self._workloads.exist():
+            logger.info("Workloads:\n    %s", self._workloads.get_names().replace(" ", "\n"))
         common.pdsh(settings.getnodes('clients'),
                     'sudo rm -rf %s' % self.run_dir,
                     continue_if_error=False).communicate()
@@ -57,7 +68,7 @@ class RawFio(Benchmark):
         for i in range(self.concurrent_procs):
             b = self.block_devices[i % len(self.block_devices)]
             fiopath = b
-            pre_cmd = 'sudo %s --rw=write -ioengine=%s --bs=%s ' % (self.fio_cmd, self.ioengine, self.op_size)
+            pre_cmd = 'sudo %s --rw=write -ioengine=%s --bs=%s ' % (self.cmd_path, self.ioengine, self.op_size)
             pre_cmd = '%s --size %dM --name=%s --output-format=%s> /dev/null' % (
                 pre_cmd, self.vol_size, fiopath, self.fio_out_format)
             initializer_list.append(common.pdsh(clnts, pre_cmd,
@@ -72,57 +83,113 @@ class RawFio(Benchmark):
 
     def run(self):
         super(RawFio, self).run()
-        # Set client readahead
         clnts = settings.getnodes('clients')
 
-        # We'll always drop caches for rados bench
+        # We'll always drop caches for raw fio
         self.dropcaches()
 
-        monitoring.start(self.run_dir)
+        if self._workloads.exist():
+            self._workloads.set_benchmark_type("rawfio")
+            self._workloads.set_executable(self.cmd_path)
+            self._workloads.run()
+        else:
+            monitoring.start(self.run_dir)
 
-        time.sleep(5)
+            time.sleep(5)
 
-        logger.info('Starting raw fio %s test.', self.mode)
+            logger.info('Starting raw fio %s test.', self.mode)
 
-        fio_process_list = []
-        for i in range(self.concurrent_procs):
-            b = self.block_devices[i % len(self.block_devices)]
-            fiopath = b
-            out_file = '%s/output.%d' % (self.run_dir, i)
-            fio_cmd = 'sudo %s' % self.fio_cmd
-            fio_cmd += ' --rw=%s' % self.mode
-            if (self.mode == 'readwrite' or self.mode == 'randrw'):
-                fio_cmd += ' --rwmixread=%s --rwmixwrite=%s' % (self.rwmixread, self.rwmixwrite)
-            fio_cmd += ' --ioengine=%s' % self.ioengine
-            fio_cmd += ' --runtime=%s' % self.time
-            fio_cmd += ' --ramp_time=%s' % self.ramp
-            if self.startdelay:
-                fio_cmd += ' --startdelay=%s' % self.startdelay
-            if self.rate_iops:
-                fio_cmd += ' --rate_iops=%s' % self.rate_iops
-            fio_cmd += ' --numjobs=%s' % self.numjobs
-            fio_cmd += ' --direct=%s' % self.direct
-            fio_cmd += ' --bs=%dB' % self.op_size
-            fio_cmd += ' --iodepth=%d' % self.iodepth
-            fio_cmd += ' --size=%dM' % self.vol_size
-            if self.log_iops:
-                fio_cmd += ' --write_iops_log=%s' % out_file
-            if self.log_bw:
-                fio_cmd += ' --write_bw_log=%s' % out_file
-            if self.log_lat:
-                fio_cmd += ' --write_lat_log=%s' % out_file
-            fio_cmd += ' --output-format=%s' % self.fio_out_format
-            if 'recovery_test' in self.cluster.config:
-                fio_cmd += ' --time_based'
-            fio_cmd += ' --name=%s > %s' % (fiopath, out_file)
-            logger.debug("FIO CMD: %s" % fio_cmd)
-            fio_process_list.append(common.pdsh(clnts, fio_cmd, continue_if_error=False))
-        for p in fio_process_list:
-            p.communicate()
-        monitoring.stop(self.run_dir)
-        logger.info('Finished raw fio test')
+            fio_process_list = []
+            for i in range(self.concurrent_procs):
+                b = self.block_devices[i % len(self.block_devices)]
+                fiopath = b
+                out_file = '%s/output.%d' % (self.run_dir, i)
+                fio_cmd = 'sudo %s' % self.cmd_path
+                fio_cmd += ' --rw=%s' % self.mode
+                if self.mode == 'readwrite' or self.mode == 'randrw':
+                    fio_cmd += ' --rwmixread=%s --rwmixwrite=%s' % (self.rwmixread, self.rwmixwrite)
+                fio_cmd += ' --ioengine=%s' % self.ioengine
+                fio_cmd += ' --runtime=%s' % self.time
+                fio_cmd += ' --ramp_time=%s' % self.ramp
+                if self.startdelay:
+                    fio_cmd += ' --startdelay=%s' % self.startdelay
+                if self.rate_iops:
+                    fio_cmd += ' --rate_iops=%s' % self.rate_iops
+                fio_cmd += ' --numjobs=%s' % self.numjobs
+                fio_cmd += ' --direct=%s' % self.direct
+                fio_cmd += ' --bs=%dB' % self.op_size
+                fio_cmd += ' --iodepth=%d' % self.iodepth
+                fio_cmd += ' --size=%dM' % self.vol_size
+                if self.log_iops:
+                    fio_cmd += ' --write_iops_log=%s' % out_file
+                if self.log_bw:
+                    fio_cmd += ' --write_bw_log=%s' % out_file
+                if self.log_lat:
+                    fio_cmd += ' --write_lat_log=%s' % out_file
+                fio_cmd += ' --output-format=%s' % self.fio_out_format
+                if 'recovery_test' in self.cluster.config:
+                    fio_cmd += ' --time_based'
+                fio_cmd += ' --name=%s > %s' % (fiopath, out_file)
+                logger.debug("FIO CMD: %s" % fio_cmd)
+                fio_process_list.append(common.pdsh(clnts, fio_cmd, continue_if_error=False))
+            for p in fio_process_list:
+                p.communicate()
+            monitoring.stop(self.run_dir)
+            logger.info('Finished raw fio test')
 
-        common.sync_files('%s/*' % self.run_dir, self.out_dir)
+        source_directory: str = f'{self.run_dir}/*'
+        if self._workloads.exist():
+            source_directory = f'{self._workloads.get_base_run_directory()}/*'
+        common.sync_files(source_directory, self.out_dir)
+        self.analyze(self.out_dir)
+
+        if self._create_report:
+            report_config: dict[str, Union[str, bool]] = settings.report
+            output_directory: str = report_config.get('output_directory', f"{self.out_dir}/report")
+            report_options: ReportOptions = ReportOptions(
+                archives=[f"{self.archive_dir}"],
+                output_directory=output_directory,
+                results_file_root="json_output",
+                create_pdf=report_config.get("create_pdf", False),
+                force_refresh=report_config.get("force_refresh", False),
+                no_error_bars=report_config.get("no_error_bars", False),
+                comparison=False,
+                plot_resources=report_config.get("plot_resource", False),
+            )
+            report: Report = Report(report_options)
+            report.generate()
+
+    def parse(self, out_dir):
+        """
+        Filters the JSON output from the fio output file and writes it to a
+        separate file. Works with both --output-format=json and json,normal.
+
+        Unlike librbdfio, this uses the out_dir argument as the search root
+        because self.out_dir and self.archive_dir are different paths in rawfio.
+        """
+        archive_path: Path = Path(out_dir)
+        files_to_process: list[Path] = [
+            file for file in archive_path.glob("**/output.*") if re.search(r"output\.\d+$", str(file))
+        ]
+        for file in files_to_process:
+            with file.open("r", encoding="utf-8") as input_file:
+                output_file_name: str = f"{file.parent}/json_output{file.name[file.name.find('.'):]}"
+                output_path = Path(output_file_name)
+                found: bool = False
+                with output_path.open("w", encoding="utf-8") as output_file:
+                    for line in input_file.readlines():
+                        if re.search("^{$", line):
+                            found = True
+                        if re.search("^}$", line):
+                            output_file.write(line)
+                            found = False
+                            break
+                        if found:
+                            output_file.write(line)
+
+    def analyze(self, out_dir):
+        logger.info('Convert results to json format.')
+        self.parse(out_dir)
 
     def cleanup(self):
         super(RawFio, self).cleanup()

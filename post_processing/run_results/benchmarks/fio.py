@@ -30,9 +30,10 @@ class FIO(BenchmarkResult):
         blocksize: str = get_blocksize(f"{fio_global_options['bs']}")
         global_options_details: dict[str, str] = {
             "number_of_jobs": f"{fio_global_options['numjobs']}",
-            "runtime_seconds": f"{fio_global_options['runtime']}",
             "blocksize": blocksize,
         }
+        if "runtime" in fio_global_options:
+            global_options_details["runtime_seconds"] = f"{fio_global_options['runtime']}"
         self._number_of_jobs = f"{fio_global_options['numjobs']}"
 
         # if rwmixread exists in the output then so does rwmixwrite

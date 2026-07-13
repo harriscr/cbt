@@ -10,6 +10,7 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 from command.command import Command
+from command.raw_fio_command import RawFioCommand
 from workloads.workload import Workload
 from workloads.workload_types import WorkloadType
 
@@ -225,6 +226,24 @@ class TestWorkload(unittest.TestCase):
 
         self.assertIsNotNone(command)
         self.assertIsInstance(command, Command)
+
+    def test_create_command_class_rawfio(self) -> None:
+        """Test creating RawFioCommand for rawfio benchmark"""
+        workload = self._create_workload()
+        workload.set_benchmark_type("rawfio")
+
+        options = {
+            "mode": "randwrite",
+            "iodepth": "4",
+            "numjobs": "1",
+            "target_number": "0",
+            "name": self.workload_name,
+        }
+
+        command = workload._create_command_class(options)
+
+        self.assertIsNotNone(command)
+        self.assertIsInstance(command, RawFioCommand)
 
     def test_create_command_class_unsupported(self) -> None:
         """Test creating command for unsupported benchmark type"""

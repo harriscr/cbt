@@ -1400,14 +1400,13 @@
             "use_existing": false,
             "version_compat": ""
         },
-        "cmd_path": "",
+        "cmd_path": "/usr/bin/fio",
         "cmd_path_full": "",
         "concurrent_procs": 1,
         "config": {
             "iteration": 0
         },
         "direct": 1,
-        "fio_cmd": "sudo /usr/bin/fio",
         "fio_out_format": "json",
         "iodepth": 16,
         "ioengine": "libaio",
@@ -1419,7 +1418,7 @@
         "op_size": 4194304,
         "osd_ra": "0",
         "osd_ra_changed": true,
-        "out_dir": "/tmp/results/00000000/id-83a653b5/raw_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write",
+        "out_dir": "/tmp/results/00000000/id-83a653b5",
         "ramp": "0",
         "rate_iops": null,
         "run_dir": "/tmp/cbt.XYZ/00000000/RawFio/osd_ra-00000000/raw_ra-00000000/op_size-04194304/concurrent_procs-001/iodepth-016/write",
@@ -1429,7 +1428,7 @@
         "time": "300",
         "total_procs": 1,
         "valgrind": null,
-        "vol_size": 58982.4
+        "vol_size": 65536
     },
     "rbdfio": {
         "_base_archive_directory": "/tmp",
