@@ -9,13 +9,14 @@ from pathlib import Path
 
 # the ModuleType does exists in the types module, so no idea why pylint is
 # flagging this
-from types import ModuleType  # pylint: disable=[no-name-in-module]
+from types import ModuleType
 from typing import Optional
 
 from matplotlib.axes import Axes
 
 from post_processing.common import (
     DATA_FILE_EXTENSION_WITH_DOT,
+    KB_CONVERSION_FACTOR,
     PLOT_FILE_EXTENSION,
     get_blocksize_percentage_operation_numjobs_from_file_name,
 )
@@ -32,7 +33,6 @@ BLOCKSIZE_THRESHOLD_KB = 64
 BYTES_TO_MB_DIVISOR = 1024 * 1024  # Using 1024 for MiB
 NANOSECONDS_TO_MS_DIVISOR = 1_000_000
 ERROR_BAR_CAP_SIZE = 3
-KB_CONVERSION_FACTOR = 1024
 
 
 # pylint: disable=too-few-public-methods, too-many-locals
@@ -41,7 +41,7 @@ class CommonFormatPlotter(ABC):
     The base class for plotting results curves
     """
 
-    def __init__(self, plotter: ModuleType) -> None:
+    def __init__(self, plotter: ModuleType):
         self._plotter = plotter
 
     @abstractmethod
