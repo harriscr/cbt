@@ -344,7 +344,13 @@ class CommonOutputFormatter(BaseFormatter):
 
         for _, data in test_run_data.items():
             if isinstance(data, dict):
-                max_cpu = max(max_cpu, float(data["cpu"]))
+                cpu_value = data.get("cpu", "0")
+                if isinstance(cpu_value, dict):
+                    # Multi-source format: {"source1": "value1", ...}
+                    cpu_float = max((float(v) for v in cpu_value.values()), default=0.0)
+                else:
+                    cpu_float = float(cpu_value)
+                max_cpu = max(max_cpu, cpu_float)
                 # max memory here, when we start recording it
 
         return f"{max_cpu}", f"{max_memory}"
