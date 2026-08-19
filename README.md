@@ -1,5 +1,15 @@
 # CBT - The Ceph Benchmarking Tool
 
+---
+> ⚠️ **IMPORTANT NOTICE**
+>
+> This current branch (`main`) is the new default branch for ongoing development
+> which contains the latest features and code for CBT.
+> 
+> Also see information about the new [release structure](docs/ReleaseStructure.md) for CBT
+> following the release of Ceph v21.x (Umbrella).
+---
+
 ## INTRODUCTION
 
 CBT is a testing harness written in python that can automate a variety of tasks
