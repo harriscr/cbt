@@ -5,6 +5,8 @@
 from typing import Any, Optional
 from unittest.mock import MagicMock, mock_open, patch
 
+import pytest
+
 from monitoring.perf_monitoring import OsdPerfMonitoring, PerfMonitoring
 
 # ---------------------------------------------------------------------------
@@ -21,6 +23,7 @@ def _make_perf_monitor(
     """Construct a PerfMonitoring instance with mocked settings."""
     if mconfig is None:
         mconfig = {"args": _ARGS}
+    assert "args" in mconfig, "_make_perf_monitor: mconfig must include 'args'"
     with (
         patch("monitoring.monitoring.settings") as mock_base_settings,
         patch("monitoring.perf_monitoring.settings") as mock_settings,
@@ -93,13 +96,13 @@ def test_perf_start_local_node_runs_perf() -> None:
 
     mock_pdsh.assert_called_once_with("resolved-nodes", "mkdir -p -m0755 -- /tmp/output/perf")
     mkdir_runner.communicate.assert_called_once_with()
-    mock_sh.assert_called_once_with("node1", "sudo perf stat -o /tmp/output/perf/perf_stat.out &")
+    mock_sh.assert_called_once_with("node1", "sudo perf stat -o /tmp/output/perf/perf_stat.out")
     assert monitor._perf_runners == [local_runner]
     assert monitor._perf_dir == "/tmp/output/perf"
 
 
 def test_perf_start_remote_node_uses_pdsh() -> None:
-    """PerfMonitoring.start() dispatches a single pdsh command for remote nodes."""
+    """PerfMonitoring.start() dispatches a single pdsh command for remote nodes and awaits it."""
     mkdir_runner = MagicMock()
     remote_runner = MagicMock()
     with (
@@ -114,7 +117,8 @@ def test_perf_start_remote_node_uses_pdsh() -> None:
         PerfMonitoring({"args": "stat -o {perf_dir}/perf_stat.out"}).start("/tmp/output")
 
     mock_pdsh.assert_any_call("resolved-nodes", "mkdir -p -m0755 -- /tmp/output/perf")
-    mock_pdsh.assert_any_call("resolved-nodes", "sudo perf stat -o /tmp/output/perf/perf_stat.out &")
+    mock_pdsh.assert_any_call("resolved-nodes", "sudo perf stat -o /tmp/output/perf/perf_stat.out")
+    remote_runner.communicate.assert_called_once_with()
 
 
 def test_perf_stop_kills_local_runners() -> None:
@@ -142,7 +146,7 @@ def test_perf_stop_uses_pdsh_when_no_local_runners() -> None:
 
 
 def test_perf_stop_chowns_output_files_when_directory_provided() -> None:
-    """PerfMonitoring.stop() adjusts ownership of generated perf files when a directory is given."""
+    """PerfMonitoring.stop() adjusts ownership of generated perf files and awaits each chown."""
     stop_runner = MagicMock()
     chown_data_runner = MagicMock()
     chown_stat_runner = MagicMock()
@@ -153,8 +157,10 @@ def test_perf_stop_chowns_output_files_when_directory_provided() -> None:
         monitor.stop("/tmp/output")
 
     mock_pdsh.assert_any_call("resolved-nodes", r"sudo pkill -SIGINT -f perf\ ")
-    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph.ceph /tmp/output/perf/perf.data")
-    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph.ceph /tmp/output/perf/perf_stat.*")
+    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph:ceph /tmp/output/perf/perf.data")
+    chown_data_runner.communicate.assert_called_once_with()
+    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph:ceph /tmp/output/perf/perf_stat.*")
+    chown_stat_runner.communicate.assert_called_once_with()
 
 
 def test_perf_get_cpu_cycles_returns_total_cycles() -> None:
@@ -193,6 +199,25 @@ def test_perf_get_cpu_cycles_returns_none_when_cycles_missing() -> None:
         monitor = PerfMonitoring({"args": _ARGS})
 
         assert monitor.get_cpu_cycles("/tmp/output") is None
+
+
+def test_perf_get_cpu_cycles_returns_none_when_no_perf_dir() -> None:
+    """PerfMonitoring.get_cpu_cycles() returns None (not IndexError) when no perf dir exists."""
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+        patch("monitoring.perf_monitoring.glob.glob", return_value=[]),
+        patch("monitoring.perf_monitoring.logger") as mock_logger,
+    ):
+        mock_base_settings.getnodes.return_value = "resolved-nodes"
+        mock_settings.cluster.get.side_effect = lambda key, default=None: {"user": "ceph"}.get(key, default)
+        monitor = PerfMonitoring({"args": _ARGS})
+
+        result = monitor.get_cpu_cycles("/tmp/output")
+
+    assert result is None
+    warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+    assert any("no perf output directory" in c for c in warning_calls)
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +272,7 @@ def test_osd_perf_start_local_node_runs_perf_per_pid() -> None:
 
     mock_pdsh.assert_called_once_with("resolved-nodes", "mkdir -p -m0755 -- /tmp/output/perf")
     mkdir_runner.communicate.assert_called_once_with()
-    mock_sh.assert_called_once_with("node1", "sudo perf stat -p 123 -o /tmp/output/perf/perf_stat.123 &")
+    mock_sh.assert_called_once_with("node1", "sudo perf stat -p 123 -o /tmp/output/perf/perf_stat.123")
     assert monitor._perf_runners == [local_runner]
     assert monitor._perf_dir == "/tmp/output/perf"
 
@@ -255,6 +280,8 @@ def test_osd_perf_start_local_node_runs_perf_per_pid() -> None:
 def test_osd_perf_start_remote_node_uses_pdsh_loop() -> None:
     """OsdPerfMonitoring.start() dispatches via pdsh for-loop when no local node is available."""
     mkdir_runner = MagicMock()
+    ls_runner = MagicMock()
+    ls_runner.communicate.return_value = ("/var/run/ceph/osd.1.pid\n", "")
     remote_runner = MagicMock()
     with (
         patch("monitoring.monitoring.settings") as mock_base_settings,
@@ -267,22 +294,97 @@ def test_osd_perf_start_remote_node_uses_pdsh_loop() -> None:
             "pid_dir": "/var/run/ceph",
             "user": "ceph",
         }.get(key, default)
-        mock_pdsh.side_effect = [mkdir_runner, remote_runner]
+        mock_pdsh.side_effect = [mkdir_runner, ls_runner, remote_runner]
         OsdPerfMonitoring({"args": _ARGS}).start("/tmp/output")
 
     mock_pdsh.assert_any_call("resolved-nodes", "mkdir -p -m0755 -- /tmp/output/perf")
+    mock_pdsh.assert_any_call("resolved-nodes", "ls /var/run/ceph/osd.*.pid 2>/dev/null")
     mock_pdsh.assert_any_call(
         "resolved-nodes",
         [
             "for pid in `cat /var/run/ceph/osd.*.pid`;",
             "do",
-            "sudo perf stat -p ${pid} -o /tmp/output/perf/perf_stat.${pid} &",
+            "sudo perf stat -p ${pid} -o /tmp/output/perf/perf_stat.${pid}",
             ";",
             "done",
         ],
     )
 
 
+def test_osd_perf_start_local_node_warns_when_no_pid_files() -> None:
+    """OsdPerfMonitoring.start() logs a warning when no local PID files are found."""
+    mkdir_runner = MagicMock()
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+        patch("monitoring.perf_monitoring.common.pdsh", return_value=mkdir_runner),
+        patch("monitoring.perf_monitoring.common.get_localnode", return_value="node1"),
+        patch("monitoring.perf_monitoring.glob.glob", return_value=[]),
+        patch("monitoring.perf_monitoring.logger") as mock_logger,
+    ):
+        mock_base_settings.getnodes.return_value = "resolved-nodes"
+        mock_settings.cluster.get.side_effect = lambda key, default=None: {
+            "pid_dir": "/var/run/ceph",
+            "user": "ceph",
+        }.get(key, default)
+        OsdPerfMonitoring({"args": _ARGS}).start("/tmp/output")
+
+    warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+    assert any("no PID files" in c for c in warning_calls)
+
+
+def test_osd_perf_start_remote_node_warns_when_no_pid_files() -> None:
+    """OsdPerfMonitoring.start() logs a warning when the remote ls finds no PID files."""
+    mkdir_runner = MagicMock()
+    ls_runner = MagicMock()
+    ls_runner.communicate.return_value = ("", "")
+    remote_runner = MagicMock()
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+        patch("monitoring.perf_monitoring.common.pdsh") as mock_pdsh,
+        patch("monitoring.perf_monitoring.common.get_localnode", return_value=None),
+        patch("monitoring.perf_monitoring.logger") as mock_logger,
+    ):
+        mock_base_settings.getnodes.return_value = "resolved-nodes"
+        mock_settings.cluster.get.side_effect = lambda key, default=None: {
+            "pid_dir": "/var/run/ceph",
+            "user": "ceph",
+        }.get(key, default)
+        mock_pdsh.side_effect = [mkdir_runner, ls_runner, remote_runner]
+        OsdPerfMonitoring({"args": _ARGS}).start("/tmp/output")
+
+    warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+    assert any("no PID files" in c for c in warning_calls)
+
+
 def test_osd_perf_stop_inherited_from_perf_monitoring() -> None:
     """OsdPerfMonitoring inherits stop() from PerfMonitoring without override."""
     assert OsdPerfMonitoring.stop is PerfMonitoring.stop
+
+
+def test_perf_init_raises_when_args_missing() -> None:
+    """PerfMonitoring.__init__ raises ValueError when 'args' is absent from mconfig."""
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+    ):
+        mock_base_settings.getnodes.return_value = "resolved-nodes"
+        mock_settings.cluster.get.side_effect = lambda key, default=None: {"user": "ceph"}.get(key, default)
+        with pytest.raises(ValueError, match="args"):
+            PerfMonitoring({})
+
+
+def test_osd_perf_init_raises_when_args_missing() -> None:
+    """OsdPerfMonitoring.__init__ raises ValueError when 'args' is absent from mconfig."""
+    with (
+        patch("monitoring.monitoring.settings") as mock_base_settings,
+        patch("monitoring.perf_monitoring.settings") as mock_settings,
+    ):
+        mock_base_settings.getnodes.return_value = "resolved-nodes"
+        mock_settings.cluster.get.side_effect = lambda key, default=None: {
+            "pid_dir": "/var/run/ceph",
+            "user": "ceph",
+        }.get(key, default)
+        with pytest.raises(ValueError, match="args"):
+            OsdPerfMonitoring({})

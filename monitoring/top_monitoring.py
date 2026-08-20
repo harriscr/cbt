@@ -40,7 +40,8 @@ class TopMonitoring(Monitoring):
         top_dir = f"{directory}/top"
         common.pdsh(self._nodes, f"mkdir -p -m0755 -- {top_dir}").communicate()  # type: ignore[no-untyped-call]
 
-        top_cmd = f"{self._top_cmd} {self._args}".format(top_dir=top_dir)
+        top_template = f"{self._top_cmd} {self._args}"
+        top_cmd = top_template.format(top_dir=top_dir)
         local_node = common.get_localnode(self._nodes)  # type: ignore[no-untyped-call]
         if local_node:
             runner = common.sh(local_node, top_cmd)  # type: ignore[no-untyped-call]
@@ -59,7 +60,7 @@ class TopMonitoring(Monitoring):
         if directory:
             common.pdsh(  # type: ignore[no-untyped-call]
                 self._nodes,
-                f"sudo chown {self._user}.{self._user} {directory}/top/*top.out",
+                f"sudo chown {self._user}:{self._user} {directory}/top/*top.out",
             )
 
 

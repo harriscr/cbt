@@ -52,7 +52,7 @@ def test_get_object_returns_perf_monitoring() -> None:
     ):
         mock_base_settings.getnodes.return_value = "node1"
         mock_settings.cluster.get.return_value = "dummy"
-        instance = MonitoringFactory.get_object("perf", {})
+        instance = MonitoringFactory.get_object("perf", {"args": "record"})
     assert isinstance(instance, PerfMonitoring)
 
 
@@ -100,7 +100,7 @@ def test_get_object_returns_osd_perf_monitoring() -> None:
     ):
         mock_base_settings.getnodes.return_value = "node1"
         mock_settings.cluster.get.return_value = "dummy"
-        instance = MonitoringFactory.get_object("osd_perf", {})
+        instance = MonitoringFactory.get_object("osd_perf", {"args": "record"})
     assert isinstance(instance, OsdPerfMonitoring)
 
 

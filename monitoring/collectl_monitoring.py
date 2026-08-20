@@ -26,9 +26,9 @@ class CollectlMonitoring(Monitoring):
         """Create the output directory and start collectl."""
         collectl_dir = f"{directory}/collectl"
         common.pdsh(self._nodes, f"mkdir -p -m0755 -- {collectl_dir}").communicate()  # type: ignore[no-untyped-call]
-        common.pdsh(
+        common.pdsh(  # type: ignore[no-untyped-call]
             self._nodes, ["collectl", self._args.format(collectl_dir=collectl_dir)]
-        )  # type: ignore[no-untyped-call]
+        )
 
     def stop(self, directory: Optional[str]) -> None:
         """Stop running collectl processes."""

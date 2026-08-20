@@ -162,7 +162,7 @@ def test_top_stop_chowns_output_files_when_directory_provided() -> None:
         mock_pdsh.side_effect = [stop_runner, chown_runner]
         monitor.stop("/tmp/output")
 
-    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph.ceph /tmp/output/top/*top.out")
+    mock_pdsh.assert_any_call("resolved-nodes", "sudo chown ceph:ceph /tmp/output/top/*top.out")
 
 
 # ---------------------------------------------------------------------------
