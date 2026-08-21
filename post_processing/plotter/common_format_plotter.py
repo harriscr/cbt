@@ -15,6 +15,7 @@ from typing import Any, Optional, Union, cast
 from matplotlib.axes import Axes
 
 from post_processing.common import (
+    BLOCKSIZE_THRESHOLD_KB,
     DATA_FILE_EXTENSION_WITH_DOT,
     KB_CONVERSION_FACTOR,
     PLOT_FILE_EXTENSION,
@@ -29,7 +30,7 @@ from post_processing.post_processing_types import CommonFormatDataType, PlotData
 log: Logger = getLogger("plotter")
 
 # Module-level constants for data conversion and plotting
-BLOCKSIZE_THRESHOLD_KB = 64
+# BLOCKSIZE_THRESHOLD_KB is imported from post_processing.common — single source of truth.
 BYTES_TO_MB_DIVISOR = 1024 * 1024  # Using 1024 for MiB
 NANOSECONDS_TO_MS_DIVISOR = 1_000_000
 ERROR_BAR_CAP_SIZE = 3

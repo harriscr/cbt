@@ -15,7 +15,6 @@ import subprocess
 from datetime import datetime
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Optional
 
 from post_processing.common import (
     PLOT_FILE_EXTENSION_WITH_DOT,
@@ -146,7 +145,6 @@ class SimpleReportGenerator(ReportGenerator):
             # Use shell=False for security - pass command as list
             subprocess.call(["/usr/bin/env", "cp", str(plot_file), f"{self._plots_directory}/"])
 
-    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: Optional[int] = 0) -> list[Path]:
+    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: int = 0) -> list[Path]:
         unsorted_paths: list[Path] = list(paths[0].glob(search_pattern))
-        assert index is not None
         return self._sort_list_of_paths(unsorted_paths, index)

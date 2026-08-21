@@ -66,7 +66,7 @@ class TestFIOTimeSeriesParser(unittest.TestCase):
         self.assertEqual(result["blocksize"], "4k")
         self.assertEqual(result["numjobs"], "1")
         self.assertEqual(result["metadata"]["num_volumes"], 2)
-        self.assertEqual(result["metadata"]["log_avg_msec"], 1000)
+        self.assertEqual(result["metadata"]["sampling_interval_ms"], 1000)
         self.assertAlmostEqual(result["metadata"]["duration_seconds"], 2.0, places=1)
 
         # Check timeseries data

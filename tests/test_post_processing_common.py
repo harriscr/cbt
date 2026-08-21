@@ -32,7 +32,9 @@ class TestCommonFunctions(unittest.TestCase):
 
     def test_get_blocksize_percentage_operation_from_file_name_simple(self) -> None:
         """Test parsing simple filename format: BLOCKSIZE_NUMJOBS_OPERATION"""
-        blocksize, read_percent, operation, number_of_jobs = get_blocksize_percentage_operation_numjobs_from_file_name("4096_1_read")
+        blocksize, read_percent, operation, number_of_jobs = get_blocksize_percentage_operation_numjobs_from_file_name(
+            "4096_1_read"
+        )
         self.assertEqual(blocksize, "4K")
         self.assertEqual(read_percent, "")
         self.assertEqual(operation, "Sequential Read")
@@ -273,6 +275,44 @@ class TestCommonFunctions(unittest.TestCase):
         # Result should be a positive float
         self.assertIsInstance(result, float)
         self.assertGreater(result, 0)
+
+    def test_sum_standard_deviation_single_sample_returns_zero(self) -> None:
+        """Sample standard deviation is undefined for exactly one observation.
+
+        Previously total_ios - 1 = 0 caused ZeroDivisionError.
+        The fix returns 0.0 instead.
+        """
+        result = sum_standard_deviation_values(
+            std_deviations=[0.0],
+            operations=[1],
+            latencies=[5.0],
+            total_ios=1,
+            combined_latency=5.0,
+        )
+        self.assertEqual(result, 0.0)
+
+    def test_sum_standard_deviation_zero_ios_returns_zero(self) -> None:
+        """total_ios == 0 also returns 0.0 without raising."""
+        result = sum_standard_deviation_values(
+            std_deviations=[],
+            operations=[],
+            latencies=[],
+            total_ios=0,
+            combined_latency=0.0,
+        )
+        self.assertEqual(result, 0.0)
+
+    def test_sum_standard_deviation_multiple_samples_returns_positive_float(self) -> None:
+        """Normal multi-sample case still returns a positive float (regression guard)."""
+        result = sum_standard_deviation_values(
+            std_deviations=[1.0, 2.0, 1.5],
+            operations=[100, 200, 150],
+            latencies=[5.0, 6.0, 5.5],
+            total_ios=450,
+            combined_latency=5.611111,
+        )
+        self.assertIsInstance(result, float)
+        self.assertGreater(result, 0.0)
 
     def test_file_is_empty_true(self) -> None:
         """Test detecting empty file"""

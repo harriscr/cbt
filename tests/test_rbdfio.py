@@ -170,16 +170,6 @@ class TestRBDFIO(unittest.TestCase):
         self.assertEqual(result.iodepth, "32")
         self.assertEqual(result.number_of_jobs, "1")
 
-    def test_create_resource_result(self) -> None:
-        """Test creating resource result returns FIOResource instance"""
-        rbdfio = RBDFIO(self.test_path, "json_output")
-        test_file = self.test_path / "json_output.0"
-
-        result = rbdfio._create_resource_result(test_file)
-
-        # FIOResource should have source property
-        self.assertEqual(result.source, "fio")
-
     def test_process_results(self) -> None:
         """Test processing results aggregates data correctly"""
         rbdfio = RBDFIO(self.test_path, "json_output")

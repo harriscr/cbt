@@ -64,14 +64,18 @@ class FIOLogParser:
             log.error("Error parsing IOPS log %s: %s", file_path, e)
             return None
 
-    def parse_clat_log(self, file_path: Path) -> Optional[DataFrame]:
+    def _parse_latency_log(self, file_path: Path) -> Optional[DataFrame]:
         """
-        Parse FIO _clat.log file (completion latency).
+        Parse any FIO latency log file (clat, lat, or slat).
 
-        Format: timestamp_ms, latency_ns, direction, block_size, offset
+        All three latency log types share the same format:
+            timestamp_ms, latency_ns, direction, block_size, offset
+
+        This is the single implementation used by ``parse_clat_log``,
+        ``parse_lat_log``, and ``parse_slat_log``.
 
         Args:
-            file_path: Path to the _clat.log file
+            file_path: Path to the latency log file
 
         Returns:
             DataFrame with columns [timestamp_sec, latency_ms, direction] or None if error
@@ -84,14 +88,14 @@ class FIOLogParser:
             )
             # Handle empty file - return empty DataFrame
             if df.empty:
-                log.debug("Empty clat log file %s", file_path)
+                log.debug("Empty latency log file %s", file_path)
                 return pd.DataFrame(columns=["timestamp_sec", "latency_ms", "direction"])
             # Validate numeric columns
             df["timestamp_ms"] = pd.to_numeric(df["timestamp_ms"], errors="coerce")
             df["latency_ns"] = pd.to_numeric(df["latency_ns"], errors="coerce")
             # Check if we have any valid data after coercion
             if df["timestamp_ms"].isna().all() or df["latency_ns"].isna().all():
-                log.error("No valid numeric data in clat log %s", file_path)
+                log.error("No valid numeric data in latency log %s", file_path)
                 return None
             df["timestamp_sec"] = df["timestamp_ms"] / 1000.0
             df["latency_ms"] = df["latency_ns"] / 1_000_000.0
@@ -99,14 +103,30 @@ class FIOLogParser:
             log.debug("Parsed %d latency samples from %s", len(result), file_path)
             return result
         except (FileNotFoundError, pd.errors.ParserError, ValueError, TypeError) as e:
-            log.error("Error parsing clat log %s: %s", file_path, e)
+            log.error("Error parsing latency log %s: %s", file_path, e)
             return None
+
+    def parse_clat_log(self, file_path: Path) -> Optional[DataFrame]:
+        """
+        Parse FIO _clat.log file (completion latency).
+
+        Delegates to ``_parse_latency_log`` — clat, lat, and slat share the
+        same on-disk format (timestamp_ms, latency_ns, direction, …).
+
+        Args:
+            file_path: Path to the _clat.log file
+
+        Returns:
+            DataFrame with columns [timestamp_sec, latency_ms, direction] or None if error
+        """
+        return self._parse_latency_log(file_path)
 
     def parse_lat_log(self, file_path: Path) -> Optional[pd.DataFrame]:
         """
         Parse FIO _lat.log file (total latency).
 
-        Format: timestamp_ms, latency_ns, direction, block_size, offset
+        Delegates to ``_parse_latency_log`` — clat, lat, and slat share the
+        same on-disk format (timestamp_ms, latency_ns, direction, …).
 
         Args:
             file_path: Path to the _lat.log file
@@ -114,8 +134,7 @@ class FIOLogParser:
         Returns:
             DataFrame with columns [timestamp_sec, latency_ms, direction] or None if error
         """
-        # Same format as clat
-        return self.parse_clat_log(file_path)
+        return self._parse_latency_log(file_path)
 
     def parse_bw_log(self, file_path: Path) -> Optional[DataFrame]:
         """
@@ -159,7 +178,8 @@ class FIOLogParser:
         """
         Parse FIO _slat.log file (submission latency).
 
-        Format: timestamp_ms, latency_ns, direction, block_size, offset
+        Delegates to ``_parse_latency_log`` — clat, lat, and slat share the
+        same on-disk format (timestamp_ms, latency_ns, direction, …).
 
         Args:
             file_path: Path to the _slat.log file
@@ -167,8 +187,7 @@ class FIOLogParser:
         Returns:
             DataFrame with columns [timestamp_sec, latency_ms, direction] or None if error
         """
-        # Same format as clat
-        return self.parse_clat_log(file_path)
+        return self._parse_latency_log(file_path)
 
     def parse_and_combine_logs(  # pylint: disable=too-many-locals
         self, directory: Path, log_type: str, pattern: str = "*"

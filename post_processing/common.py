@@ -10,9 +10,9 @@ from logging import Logger, getLogger
 from math import sqrt
 from pathlib import Path
 from re import Pattern
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Union
 
-from post_processing.post_processing_types import CommonFormatDataType
+from post_processing.post_processing_types import CommonFormatDataType, TimeSeriesDataPoint
 
 log: Logger = getLogger("cbt")
 
@@ -35,6 +35,12 @@ DATA_FILE_EXTENSION_WITH_DOT: str = f".{DATA_FILE_EXTENSION}"
 
 # Common conversion factors
 KB_CONVERSION_FACTOR: int = 1024
+
+# Canonical threshold for switching between IOPS and bandwidth display.
+# Blocksizes below this (exclusive) show IOPS; at or above show bandwidth.
+# Defined here so that plotters and report generators share a single source
+# of truth rather than each maintaining their own copy.
+BLOCKSIZE_THRESHOLD_KB: int = 64
 
 # Regex patterns for stripping confidential data
 _IPV4_PATTERN: Pattern[str] = re.compile(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b")
@@ -103,37 +109,54 @@ def read_intermediate_file(file_path: str) -> CommonFormatDataType:
     return data
 
 
-def _extract_metrics_from_intermediate_file(
-    file_path: Path, metric_keys: list[str], format_function: Optional[list[Callable[[str], str]]] = None
-) -> tuple[str, ...]:
+def calculate_timeseries_maximum_values(timeseries: list[TimeSeriesDataPoint]) -> dict[str, str]:
     """
-    Generic function to extract metrics from an intermediate format file.
+    Calculate maximum values from a list of time-series data points.
+
+    Returns a dict of pre-formatted maximum metric strings in the same layout
+    as the top-level fields in ``TimeSeriesFormatType``.  Both
+    ``FIOTimeSeriesParser`` and ``RBDFIO._merge_timeseries_data`` use this
+    function so that maximum-value formatting is defined in one place.
 
     Args:
-        file_path:          Path to the intermediate format data file
-        metric_keys:        List of keys to extract from the data
-        format_function:    Optional list of formatting functions to apply to each metric.
-                                If None, values are returned as-is. List must match length of metric_keys.
+        timeseries: List of time-series data points
 
     Returns:
-        Tuple of extracted and formatted metric values as strings
+        Dictionary with maximum values as pre-formatted strings, including
+        the corresponding timestamps.
     """
-    data: CommonFormatDataType = read_intermediate_file(file_path=f"{file_path}")
+    if not timeseries:
+        return {
+            "maximum_iops": "0",
+            "maximum_bandwidth": "0",
+            "latency_at_max_iops": "0.0",
+            "latency_at_max_bandwidth": "0.0",
+            "timestamp_at_max_iops": "0.0",
+            "timestamp_at_max_bandwidth": "0.0",
+            "maximum_latency": "0.0",
+            "timestamp_at_max_latency": "0.0",
+            "maximum_cpu_usage": "0.0",
+            "maximum_memory_usage": "0.0",
+        }
 
-    results: list[str] = []
-    for index, key in enumerate(metric_keys):
-        value = data.get(key, "0")
-        assert isinstance(value, str)
+    max_iops_point = max(timeseries, key=lambda p: p["iops"])
+    max_bw_point = max(timeseries, key=lambda p: p["bandwidth_bytes"])
+    # Use max_latency_ms: the highest latency observed in each time window
+    max_lat_point = max(timeseries, key=lambda p: p["max_latency_ms"])
 
-        # Apply formatting function if provided
-        if format_function and index < len(format_function):
-            formatted_value = format_function[index](value)
-        else:
-            formatted_value = value
-
-        results.append(formatted_value)
-
-    return tuple(results)
+    # CPU and memory are not yet available in time-series data
+    return {
+        "maximum_iops": f"{max_iops_point['iops']:.0f}",
+        "maximum_bandwidth": f"{max_bw_point['bandwidth_bytes']:.0f}",
+        "latency_at_max_iops": f"{max_iops_point['mean_latency_ms']:.6f}",
+        "latency_at_max_bandwidth": f"{max_bw_point['mean_latency_ms']:.6f}",
+        "timestamp_at_max_iops": f"{max_iops_point['timestamp_sec']:.1f}",
+        "timestamp_at_max_bandwidth": f"{max_bw_point['timestamp_sec']:.1f}",
+        "maximum_latency": f"{max_lat_point['max_latency_ms']:.6f}",
+        "timestamp_at_max_latency": f"{max_lat_point['timestamp_sec']:.1f}",
+        "maximum_cpu_usage": "0.0",
+        "maximum_memory_usage": "0.0",
+    }
 
 
 def get_latency_throughput_from_file(file_path: Path) -> tuple[str, str]:
@@ -181,21 +204,14 @@ def get_resource_details_from_file(file_path: Path) -> tuple[str, str]:
     Returns:
         A tuple of (max_cpu, max_memory) as formatted strings
     """
-
-    # Use the generic extraction function with formatting
-    def format_cpu(value: str) -> str:
-        return f"{float(value):.2f}"
-
-    def format_memory(value: str) -> str:
-        return f"{float(value):.2f}"
-
-    result = _extract_metrics_from_intermediate_file(
-        file_path=file_path,
-        metric_keys=["maximum_cpu_usage", "maximum_memory_usage"],
-        format_function=[format_cpu, format_memory],
-    )
-    # Cast to the specific tuple type for type safety
-    return cast(tuple[str, str], result)
+    data: CommonFormatDataType = read_intermediate_file(file_path=f"{file_path}")
+    cpu = data.get("maximum_cpu_usage", "0")
+    memory = data.get("maximum_memory_usage", "0")
+    if not isinstance(cpu, str):
+        raise TypeError(f"Expected str for maximum_cpu_usage, got {type(cpu)}")
+    if not isinstance(memory, str):
+        raise TypeError(f"Expected str for maximum_memory_usage, got {type(memory)}")
+    return (f"{float(cpu):.2f}", f"{float(memory):.2f}")
 
 
 def strip_confidential_data_from_yaml(yaml_data: str) -> str:
@@ -381,6 +397,10 @@ def sum_standard_deviation_values(
 
     sqrt( (weighted_stddev - (total_ios)*combined_latency^2) / total_ios - 1)
     """
+    if total_ios <= 1:
+        # Sample standard deviation is undefined for a single observation.
+        return 0.0
+
     weighted_stddev: float = 0
 
     # For standard deviation this is more complex. For each job we need to calculate:
@@ -458,6 +478,18 @@ def _find_visualisation_directories_with_filter(
     return sort_function(visualisation_directories)
 
 
+def _has_non_timeseries_json(directory: Path) -> bool:
+    """
+    Return True if *directory* contains at least one non-timeseries JSON file.
+
+    A "non-timeseries" JSON file is any ``.json`` file whose stem does NOT
+    end with ``"_timeseries"``.  This helper is used by
+    ``find_hockey_stick_visualisation_directories`` to filter out directories
+    that only hold time-series data files.
+    """
+    return any(not path.stem.endswith("_timeseries") for path in directory.glob(f"*{DATA_FILE_EXTENSION_WITH_DOT}"))
+
+
 def find_hockey_stick_visualisation_directories(archive_directory: Path) -> list[Path]:
     """
     Find visualisation directories containing hockey-stick (common format) JSON data.
@@ -479,13 +511,7 @@ def find_hockey_stick_visualisation_directories(archive_directory: Path) -> list
     # First check for legacy structure: visualisation directly under archive directory
     legacy_visualisation_directory = archive_directory / "visualisation"
     if legacy_visualisation_directory.exists() and legacy_visualisation_directory.is_dir():
-        # Only include if there are non-timeseries JSON files
-        json_files = [
-            filename
-            for filename in legacy_visualisation_directory.glob(f"*{DATA_FILE_EXTENSION_WITH_DOT}")
-            if not filename.stem.endswith("_timeseries")
-        ]
-        if json_files:
+        if _has_non_timeseries_json(legacy_visualisation_directory):
             # Legacy structure with data - use only this
             return [legacy_visualisation_directory]
 
@@ -496,13 +522,7 @@ def find_hockey_stick_visualisation_directories(archive_directory: Path) -> list
         if operation_dir.is_dir() and not operation_dir.name.startswith("."):
             visualisation_directory = operation_dir / "visualisation"
             if visualisation_directory.exists() and visualisation_directory.is_dir():
-                # Only include if there are non-timeseries JSON files
-                json_files = [
-                    filename
-                    for filename in visualisation_directory.glob(f"*{DATA_FILE_EXTENSION_WITH_DOT}")
-                    if not filename.stem.endswith("_timeseries")
-                ]
-                if json_files:
+                if _has_non_timeseries_json(visualisation_directory):
                     visualisation_directories.append(visualisation_directory)
 
     # If we found visualisation directories at top level, return them
@@ -513,15 +533,9 @@ def find_hockey_stick_visualisation_directories(archive_directory: Path) -> list
     # This handles deeply nested CBT structures
     def has_json_files(visualisation_directory: Path) -> bool:
         """Filter function: check if directory contains non-timeseries JSON files and is not the legacy dir."""
-        if visualisation_directory == legacy_visualisation_directory:
-            return False
-        # Only count non-timeseries JSON files
-        json_files = [
-            filename
-            for filename in visualisation_directory.glob(f"*{DATA_FILE_EXTENSION_WITH_DOT}")
-            if not filename.stem.endswith("_timeseries")
-        ]
-        return len(json_files) > 0
+        return visualisation_directory != legacy_visualisation_directory and _has_non_timeseries_json(
+            visualisation_directory
+        )
 
     return _find_visualisation_directories_with_filter(
         archive_directory=archive_directory,

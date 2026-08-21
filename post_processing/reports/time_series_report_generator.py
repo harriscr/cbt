@@ -23,6 +23,7 @@ from typing import Optional
 import matplotlib.pyplot as plotter
 
 from post_processing.common import (
+    BLOCKSIZE_THRESHOLD_KB,
     DATA_FILE_EXTENSION_WITH_DOT,
     PLOT_FILE_EXTENSION_WITH_DOT,
     TITLE_CONVERSION,
@@ -49,9 +50,6 @@ class TimeSeriesReportGenerator(ReportGenerator):
     For blocksizes < 64K: displays IOPS and latency
     For blocksizes >= 64K: displays bandwidth and latency
     """
-
-    # Threshold for switching between IOPS and bandwidth display
-    BLOCKSIZE_THRESHOLD_BYTES: int = 65536  # 64K in bytes
 
     # Additional LaTeX header file for timeseries-specific formatting
     TIMESERIES_HEADER_FILE_PATH: str = "include/timeseries_report.tex"
@@ -153,7 +151,7 @@ class TimeSeriesReportGenerator(ReportGenerator):
         latency_key: str = "latency_at_max_iops"
         throughput_type: str = "IOps"
 
-        if blocksize >= 64:
+        if blocksize >= BLOCKSIZE_THRESHOLD_KB:
             throughput_key = "maximum_bandwidth"
             latency_key = "latency_at_max_bandwidth"
             throughput_type = "MB/s"
@@ -164,7 +162,7 @@ class TimeSeriesReportGenerator(ReportGenerator):
         max_throughput: float = float(throughput)
 
         # Convert bandwidth from bytes to MB/s if needed
-        if blocksize >= 64:
+        if blocksize >= BLOCKSIZE_THRESHOLD_KB:
             max_throughput = max_throughput / (1000 * 1000)
 
         latency = data[latency_key]

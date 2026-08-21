@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from logging import Logger, getLogger
 from os import chdir
 from pathlib import Path
-from typing import Optional
 
 # It seems that the mdutils package doesn't contain library stubs or a py.typed
 # marker, which causes an error here. This is an issue that would need to be
@@ -259,7 +258,7 @@ class ReportGenerator(ABC):
         """
 
     @abstractmethod
-    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: Optional[int] = 0) -> list[Path]:
+    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: int = 0) -> list[Path]:
         """
         Given the search_pattern find all the files in a Path that match
         that pattern, and return them as a list sorted numerically by file
@@ -392,19 +391,27 @@ class ReportGenerator(ABC):
             paths=[self._plots_directory], search_pattern=f"*{PLOT_FILE_EXTENSION_WITH_DOT}"
         )
 
+    @staticmethod
+    def _data_file_sort_key(file_name: str) -> tuple[int, int]:
+        """
+        Return a numeric sort key for a data file name of the form
+        ``BLOCKSIZE_NUMJOBS_OPERATION.json``.  Returns ``(0, 0)`` for any
+        file name that does not match the expected format so that unexpected
+        files sort first rather than raising a ``ValueError``.
+        """
+        try:
+            parts = file_name.split("_")
+            return (int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            return (0, 0)
+
     def _find_and_sort_data_files(self) -> dict[str, list[Path]]:
         """
         Find and sort all the data files that will be needed for
         producing the summary table
         """
         unique_file_names: list[str] = find_common_data_file_names(self._data_directories)
-        sorted_data_file_names: list[str] = sorted(
-            unique_file_names,
-            key=lambda file_name: (
-                int(file_name.split("_")[0]),
-                int(file_name.split("_")[1]),
-            ),
-        )
+        sorted_data_file_names: list[str] = sorted(unique_file_names, key=self._data_file_sort_key)
 
         sorted_data_files: dict[str, list[Path]] = {}
         for file_name in sorted_data_file_names:
@@ -427,10 +434,22 @@ class ReportGenerator(ABC):
 
     def _sort_list_of_paths(self, paths: list[Path], index: int) -> list[Path]:
         """
-        Sort a list of path files into numerical order of the file name
+        Sort a list of path files into numerical order of the file name stem.
+
+        Each stem is expected to have a numeric token at position ``index``
+        followed by a single unit character (e.g. ``"4K"``).  Files whose
+        stem does not match this format sort to position zero rather than
+        raising a ``ValueError``.
         """
-        sorted_filenames: list[Path] = sorted(paths, key=lambda a: int(a.stem.split("_")[index][:-1]))
-        return sorted_filenames
+
+        def _sort_key(path: Path) -> int:
+            try:
+                token = path.stem.split("_")[index]
+                return int(token[:-1])
+            except (ValueError, IndexError):
+                return 0
+
+        return sorted(paths, key=_sort_key)
 
     def _find_files_with_filename(self, file_name: str) -> list[Path]:
         """

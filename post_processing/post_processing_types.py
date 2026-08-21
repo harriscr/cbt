@@ -91,6 +91,11 @@ class TimeSeriesMetadata(TypedDict):
 
     Contains information about the test duration, sampling configuration,
     and number of volumes tested.
+
+    ``sampling_interval_ms`` holds the FIO ``log_avg_msec`` value — the
+    interval at which FIO averages and writes log data.  It is stored once
+    here under a benchmark-agnostic name; ``log_avg_msec`` is converted at
+    the point it enters this struct (in ``fio_time_series_parser.py``).
     """
 
     start_time_epoch: float
@@ -98,7 +103,6 @@ class TimeSeriesMetadata(TypedDict):
     duration_seconds: float
     num_volumes: int
     sampling_interval_ms: int
-    log_avg_msec: int
 
 
 class TimeSeriesFormatType(TypedDict):

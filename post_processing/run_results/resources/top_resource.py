@@ -119,13 +119,10 @@ class TopResource(ResourceResult):
         """
         return {}
 
-    def _parse(self, data: dict[str, Any]) -> None:
+    def _parse(self) -> None:
         """
         Parse all *_osd_top.out files and average CPU and memory across all
         threads, snapshots, and PID files.
-
-        Args:
-            data: Not used (top output is plain text, not JSON)
         """
         try:
             cpu_usage, memory_usage = self._parse_top_directory()

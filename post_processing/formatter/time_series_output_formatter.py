@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Optional
 
 from post_processing.formatter.base_formatter import BaseFormatter
-from post_processing.post_processing_types import TimeSeriesFormatType
 from post_processing.run_results.run_result_factory import get_run_result_from_directory_name
 
 
@@ -38,8 +37,6 @@ class TimeSeriesOutputFormatter(BaseFormatter):
         """
         super().__init__(archive_directory)
         self._filename_root: str = filename_root if filename_root else self.DEFAULT_OUTPUT_FILE_PART
-        self._timeseries_data: dict[str, TimeSeriesFormatType] = {}
-        self._benchmark_types: dict[str, str] = {}  # Track benchmark type per operation
 
     def _process_compatibility_mode(self) -> str:
         """
@@ -126,17 +123,13 @@ class TimeSeriesOutputFormatter(BaseFormatter):
             testrun_directories = self._get_testrun_directories(testrun_id)
 
             if len(testrun_directories) > 1:
-                self.log.debug(
-                    "We have more than one directory for test run %s so using the compatibility method", testrun_id
+                self.log.warning(
+                    "Multiple directories found for test run %s — compatibility mode has been removed; "
+                    "only the first directory will be processed.",
+                    testrun_id,
                 )
-                benchmark_type = self._process_compatibility_mode()
-            else:
-                benchmark_type = self._process_single_testrun(testrun_directories[0])
 
-            # Track benchmark type for all operations processed in this test run
-            for key in self._timeseries_data:
-                if key not in self._benchmark_types:
-                    self._benchmark_types[key] = benchmark_type
+            self._process_single_testrun(testrun_directories[0])
 
 
 # Made with Bob

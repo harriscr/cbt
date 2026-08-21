@@ -35,9 +35,11 @@ class TestCommonOutputFormatter(unittest.TestCase):
         """Test that CommonOutputFormatter initializes correctly"""
         self.assertEqual(self.formatter._directory, self.temp_dir)
         self.assertEqual(self.formatter._filename_root, "json_output")
-        self.assertIsInstance(self.formatter._formatted_output, dict)
         self.assertIsInstance(self.formatter._all_test_run_ids, set)
         self.assertEqual(len(self.formatter._all_test_run_ids), 0)
+        # Compatibility-mode state (_formatted_output, _benchmark_types) removed — D3
+        self.assertFalse(hasattr(self.formatter, "_formatted_output"))
+        self.assertFalse(hasattr(self.formatter, "_benchmark_types"))
 
     def test_initialization_with_custom_filename_root(self) -> None:
         """Test initialization with custom filename root"""

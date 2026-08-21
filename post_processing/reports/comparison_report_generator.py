@@ -15,7 +15,6 @@ directory.
 import subprocess
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Optional
 
 from post_processing.common import (
     PLOT_FILE_EXTENSION_WITH_DOT,
@@ -123,17 +122,13 @@ class ComparisonReportGenerator(ReportGenerator):
         output_file_name: str = f"comparitive_performance_report_{datetime_string}.{self.MARKDOWN_FILE_EXTENSION}"
         return output_file_name
 
-    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: Optional[int] = 0) -> list[Path]:
-        sorted_paths: list[Path] = []
+    def _find_and_sort_file_paths(self, paths: list[Path], search_pattern: str, index: int = 0) -> list[Path]:
         unsorted_paths: list[Path] = []
 
         for directory in paths:
             unsorted_paths.extend(list(directory.glob(search_pattern)))
 
-        assert index is not None
-        sorted_paths = self._sort_list_of_paths(unsorted_paths, index)
-
-        return sorted_paths
+        return self._sort_list_of_paths(unsorted_paths, index)
 
     def _find_and_sort_plot_files(self) -> list[Path]:
         """

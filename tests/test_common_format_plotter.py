@@ -39,9 +39,23 @@ class ConcreteCommonFormatPlotter(CommonFormatPlotter):
 class TestCommonFormatPlotterConstants(unittest.TestCase):
     """Test cases for module-level constants"""
 
-    def test_blocksize_threshold_kb(self) -> None:
-        """Test BLOCKSIZE_THRESHOLD_KB constant"""
+    def test_blocksize_threshold_kb_value(self) -> None:
+        """BLOCKSIZE_THRESHOLD_KB accessible from common_format_plotter has the correct value."""
         self.assertEqual(BLOCKSIZE_THRESHOLD_KB, 64)
+
+    def test_blocksize_threshold_kb_originates_from_common(self) -> None:
+        """BLOCKSIZE_THRESHOLD_KB is not a local copy — it is imported from post_processing.common.
+
+        This ensures there is a single canonical definition.  If common_format_plotter
+        ever redefined the constant locally this test would fail because the module
+        attribute would live in 'post_processing.plotter.common_format_plotter' rather
+        than 'post_processing.common'.
+        """
+        import post_processing.common as common_module
+        import post_processing.plotter.common_format_plotter as plotter_module
+
+        # The name in the plotter module must resolve to the same object as in common
+        self.assertIs(plotter_module.BLOCKSIZE_THRESHOLD_KB, common_module.BLOCKSIZE_THRESHOLD_KB)
 
     def test_bytes_to_mb_divisor(self) -> None:
         """Test BYTES_TO_MB_DIVISOR constant"""

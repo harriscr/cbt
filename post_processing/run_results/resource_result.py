@@ -47,24 +47,30 @@ class ResourceResult(ABC):
         """
 
     @abstractmethod
-    def _parse(self, data: dict[str, Any]) -> None:
+    def _parse(self) -> None:
         """
-        Read the resource usage data from the read data and return the
-        relevant resource usage statistics
+        Parse resource usage from the file at ``self._resource_file_path`` and
+        populate ``self._cpu``, ``self._memory``, and ``self._has_been_parsed``.
+
+        Each subclass is responsible for reading its own source file (JSON, CSV,
+        etc.) rather than receiving pre-read data as a parameter.
         """
+
+    def _ensure_parsed(self) -> None:
+        """Trigger a single lazy parse if it has not already happened."""
+        if not self._has_been_parsed:
+            self._parse()
 
     @property
     def cpu(self) -> str:
         """Return the CPU usage as a string."""
-        if not self._has_been_parsed:
-            self._parse(self._read_results_from_file())
+        self._ensure_parsed()
         return self._cpu
 
     @property
     def memory(self) -> str:
         """Return the memory usage as a string."""
-        if not self._has_been_parsed:
-            self._parse(self._read_results_from_file())
+        self._ensure_parsed()
         return self._memory
 
     def _read_results_from_file(self) -> dict[str, Any]:
@@ -90,8 +96,5 @@ class ResourceResult(ABC):
         Add the data from the resource monitoring into the common output
         format file for this test run
         """
-
-        if not self._has_been_parsed:
-            self._parse(self._read_results_from_file())
-
+        self._ensure_parsed()
         return {"source": self._source, "cpu": self._cpu, "memory": self._memory}

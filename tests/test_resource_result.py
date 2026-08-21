@@ -12,7 +12,6 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
 
 from post_processing.run_results.resource_result import ResourceResult
 
@@ -27,7 +26,7 @@ class ConcreteResourceResult(ResourceResult):
     def _get_resource_output_file_from_file_path(self, file_path: Path) -> Path:
         return file_path
 
-    def _parse(self, data: dict[str, Any]) -> None:
+    def _parse(self) -> None:
         self._cpu = "50.0"
         self._memory = "1024.0"
         self._has_been_parsed = True
@@ -97,6 +96,82 @@ class TestResourceResult(unittest.TestCase):
         data = result._read_results_from_file()
 
         self.assertEqual(data, {})
+
+
+class TestResourceResultEnsureParsed(unittest.TestCase):
+    """Tests for the _ensure_parsed() helper (W5) and the no-data-argument _parse() contract (I4).
+
+    W5: Previously cpu, memory, and get() each contained an independent
+    'if not self._has_been_parsed: self._parse(...)' guard, duplicating the
+    lazy-initialisation logic three times. The fix introduces a single
+    _ensure_parsed() method that all three delegates call.
+
+    I4: _parse() no longer accepts a data argument; each subclass reads its
+    own source file internally.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file = Path(self.temp_dir) / "resource.json"
+        import json as _json
+
+        _json.dump({"cpu_usage": 50.5}, self.test_file.open("w"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_ensure_parsed_calls_parse_exactly_once(self) -> None:
+        """_ensure_parsed() only triggers _parse() on the first call."""
+        call_count = 0
+
+        class CountingResource(ConcreteResourceResult):
+            def _parse(self) -> None:
+                nonlocal call_count
+                call_count += 1
+                self._cpu = "1.0"
+                self._memory = "0.0"
+                self._has_been_parsed = True
+
+        resource = CountingResource(self.test_file)
+        resource._ensure_parsed()
+        resource._ensure_parsed()
+        resource._ensure_parsed()
+
+        self.assertEqual(call_count, 1, "_parse() should be called exactly once")
+
+    def test_cpu_memory_get_all_use_same_parse_call(self) -> None:
+        """Accessing cpu, memory, and get() in sequence triggers _parse() only once."""
+        call_count = 0
+
+        class CountingResource(ConcreteResourceResult):
+            def _parse(self) -> None:
+                nonlocal call_count
+                call_count += 1
+                self._cpu = "42.0"
+                self._memory = "8.0"
+                self._has_been_parsed = True
+
+        resource = CountingResource(self.test_file)
+        _ = resource.cpu
+        _ = resource.memory
+        _ = resource.get()
+
+        self.assertEqual(call_count, 1, "All three accessors should share one parse call")
+
+    def test_parse_takes_no_data_argument(self) -> None:
+        """_parse() is callable with no arguments (I4 contract)."""
+        resource = ConcreteResourceResult(self.test_file)
+        # Must not raise TypeError about unexpected argument
+        try:
+            resource._parse()  # pylint: disable=protected-access
+        except TypeError as e:
+            self.fail(f"_parse() raised TypeError: {e}")
+
+    def test_parse_signature_rejects_positional_data_argument(self) -> None:
+        """Passing a positional data dict to _parse() raises TypeError (old API is gone)."""
+        resource = ConcreteResourceResult(self.test_file)
+        with self.assertRaises(TypeError):
+            resource._parse({})  # type: ignore[call-arg]  # pylint: disable=protected-access
 
 
 # Made with Bob

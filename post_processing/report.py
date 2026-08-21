@@ -8,7 +8,6 @@ performance report, and from within the CBT code if we have been told to
 """
 
 import os
-import traceback
 from argparse import Namespace
 from logging import Logger, getLogger
 from pathlib import Path
@@ -144,14 +143,13 @@ class Report:
             # the different sub-modules called. Therefore we want to catch them all and raise
             # an error message as this will directly impact any future steps
             self._result_code = 1
-            error_text: str = (
-                "Post processing has failed due to an exeption. Report may not be generated."
-                + f"\n The exception was {e}"
-                + f"\nWith stack trace {traceback.format_exc()}"
+            log.error(
+                "Post processing failed for %s. Report may not be generated.",
+                self._options.output_directory,
             )
-            log.warning(error_text)
+            log.exception(e)
             if throw_exception:
-                raise e
+                raise
 
     def _archive_has_intermediate_files(self, directory: str) -> bool:
         """
@@ -202,17 +200,6 @@ class Report:
                         archive_directory=directory, filename_root=self._options.results_file_root
                     )
 
-                try:
-                    # With memory-efficient approach, data is written during process()
-                    formatter.process()
-                except Exception as e:  # pylint: disable=[broad-exception-caught]
-                    # Generating the intermediate files can raise a broad range of exceptions from
-                    # the different sub-modules called. Therefore we want to catch them all and raise
-                    # an error message as this will directly impact any future steps
-                    log.error(
-                        "Encountered an error parsing results in directory %s with name %s",
-                        directory,
-                        self._options.results_file_root,
-                    )
-                    log.exception(e)
-                    raise e
+                # With memory-efficient approach, data is written during process()
+                # Any exceptions raised here propagate to the single handler in generate().
+                formatter.process()

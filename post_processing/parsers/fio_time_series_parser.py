@@ -12,6 +12,7 @@ from typing import Optional, Union, cast
 
 import pandas as pd
 
+from post_processing.common import calculate_timeseries_maximum_values
 from post_processing.post_processing_types import (
     TimeSeriesDataPoint,
     TimeSeriesFormatType,
@@ -152,7 +153,7 @@ class FIOTimeSeriesParser:  # pylint: disable=too-many-instance-attributes
         timeseries = self._create_timeseries_points(merged_df)
 
         # Calculate maximum values for report generation
-        maximum_values = self._calculate_maximum_values(timeseries)
+        maximum_values = calculate_timeseries_maximum_values(timeseries)
 
         result: TimeSeriesFormatType = {
             "benchmark": self._benchmark,
@@ -346,7 +347,6 @@ class FIOTimeSeriesParser:  # pylint: disable=too-many-instance-attributes
             "duration_seconds": duration,
             "num_volumes": num_volumes,
             "sampling_interval_ms": log_avg_msec,
-            "log_avg_msec": log_avg_msec,
         }
 
         return metadata
@@ -379,68 +379,6 @@ class FIOTimeSeriesParser:  # pylint: disable=too-many-instance-attributes
             timeseries.append(point)
 
         return timeseries
-
-    def _calculate_maximum_values(self, timeseries: list[TimeSeriesDataPoint]) -> dict[str, str]:
-        """
-        Calculate maximum values from time-series data points.
-
-        This follows the same pattern as the hockey-stick intermediate format,
-        pre-calculating maximum values for efficient report generation.
-
-        Args:
-            timeseries: List of time-series data points
-
-        Returns:
-            Dictionary with maximum values as strings, including timestamps
-        """
-        if not timeseries:
-            return {
-                "maximum_iops": "0",
-                "maximum_bandwidth": "0",
-                "latency_at_max_iops": "0.0",
-                "latency_at_max_bandwidth": "0.0",
-                "timestamp_at_max_iops": "0.0",
-                "timestamp_at_max_bandwidth": "0.0",
-                "maximum_latency": "0.0",
-                "timestamp_at_max_latency": "0.0",
-                "maximum_cpu_usage": "0.0",
-                "maximum_memory_usage": "0.0",
-            }
-
-        # Find maximum IOPS and corresponding latency and timestamp
-        maximum_iops_point = max(timeseries, key=lambda p: p["iops"])
-        maximum_iops = maximum_iops_point["iops"]
-        latency_at_max_iops = maximum_iops_point["mean_latency_ms"]
-        timestamp_at_max_iops = maximum_iops_point["timestamp_sec"]
-
-        # Find maximum bandwidth and corresponding latency and timestamp
-        maximum_bandwidth_point = max(timeseries, key=lambda p: p["bandwidth_bytes"])
-        maximum_bandwidth = maximum_bandwidth_point["bandwidth_bytes"]
-        latency_at_max_bandwidth = maximum_bandwidth_point["mean_latency_ms"]
-        timestamp_at_max_bandwidth = maximum_bandwidth_point["timestamp_sec"]
-
-        # Find maximum latency and its timestamp
-        # Use max_latency_ms which represents the maximum latency observed in each time window
-        maximum_latency_point = max(timeseries, key=lambda p: p["max_latency_ms"])
-        maximum_latency = maximum_latency_point["max_latency_ms"]
-        timestamp_at_max_latency = maximum_latency_point["timestamp_sec"]
-
-        # CPU and memory are not yet available in time-series data
-        maximum_cpu_usage = 0.0
-        maximum_memory_usage = 0.0
-
-        return {
-            "maximum_iops": f"{maximum_iops:.0f}",
-            "maximum_bandwidth": f"{maximum_bandwidth:.0f}",
-            "latency_at_max_iops": f"{latency_at_max_iops:.6f}",
-            "latency_at_max_bandwidth": f"{latency_at_max_bandwidth:.6f}",
-            "timestamp_at_max_iops": f"{timestamp_at_max_iops:.1f}",
-            "timestamp_at_max_bandwidth": f"{timestamp_at_max_bandwidth:.1f}",
-            "maximum_latency": f"{maximum_latency:.6f}",
-            "timestamp_at_max_latency": f"{timestamp_at_max_latency:.1f}",
-            "maximum_cpu_usage": f"{maximum_cpu_usage:.2f}",
-            "maximum_memory_usage": f"{maximum_memory_usage:.2f}",
-        }
 
 
 # Made with Bob

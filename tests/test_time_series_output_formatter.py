@@ -22,9 +22,11 @@ class TestTimeSeriesOutputFormatterInitialization(unittest.TestCase):
 
         self.assertEqual(formatter._directory, "/tmp/test")
         self.assertEqual(formatter._filename_root, "json_output")
-        self.assertEqual(formatter._timeseries_data, {})
         self.assertEqual(formatter._all_test_run_ids, set())
-        self.assertEqual(formatter._benchmark_types, {})
+        # D2: _timeseries_data and _benchmark_types removed — time-series data is written
+        # directly to disk during RunResult.process(); state is not held in the formatter.
+        self.assertFalse(hasattr(formatter, "_timeseries_data"))
+        self.assertFalse(hasattr(formatter, "_benchmark_types"))
 
     def test_initialization_with_custom_filename_root(self) -> None:
         """Test initialization with custom filename root"""
@@ -89,33 +91,6 @@ class TestFindAllTestrunIds(unittest.TestCase):
         self.assertEqual(len(formatter._all_test_run_ids), 2)
         self.assertIn("workload1", formatter._all_test_run_ids)
         self.assertIn("workload2", formatter._all_test_run_ids)
-
-
-class TestProcessCompatibilityMode(unittest.TestCase):
-    """Test _process_compatibility_mode method"""
-
-    @patch("post_processing.formatter.time_series_output_formatter.get_run_result_from_directory_name")
-    def test_process_compatibility_mode(self, mock_factory: Mock) -> None:
-        """Test processing in compatibility mode"""
-        # Create mock RunResult
-        mock_result = MagicMock()
-        mock_result.type = "rbdfio"
-        # With new memory-efficient approach, timeseries data is written during process()
-        # and get_timeseries() returns empty dict
-        mock_result.get_timeseries.return_value = {}
-        mock_factory.return_value = mock_result
-
-        formatter = TimeSeriesOutputFormatter(archive_directory="/tmp/test")
-        benchmark_type = formatter._process_compatibility_mode()
-
-        # Verify factory was called with include_timeseries=True
-        mock_factory.assert_called_once_with(Path("/tmp/test"), "json_output", include_timeseries=True)
-        mock_result.process.assert_called_once()
-        # get_timeseries() is no longer called in the new memory-efficient approach
-
-        self.assertEqual(benchmark_type, "rbdfio")
-        # With new approach, timeseries_data should be empty (written during process())
-        self.assertEqual(len(formatter._timeseries_data), 0)
 
 
 class TestProcessSingleTestrun(unittest.TestCase):
@@ -203,6 +178,39 @@ class TestProcess(unittest.TestCase):
         # Should return early without processing
 
 
+class TestMultipleDirectoriesWarning(unittest.TestCase):
+    """Test that a warning is logged when multiple directories exist for one test run (D2/D3)"""
+
+    @patch.object(TimeSeriesOutputFormatter, "_process_single_testrun")
+    @patch.object(TimeSeriesOutputFormatter, "_get_testrun_directories")
+    @patch.object(TimeSeriesOutputFormatter, "_find_all_testrun_ids")
+    def test_warning_logged_for_multiple_directories(
+        self,
+        mock_find_ids: Mock,
+        mock_get_dirs: Mock,
+        mock_process_testrun: Mock,
+    ) -> None:
+        """Only the first directory is processed; a warning is emitted for the rest"""
+        formatter = TimeSeriesOutputFormatter(archive_directory="/tmp/test")
+
+        def set_ids(file_list: list[Path]) -> None:
+            formatter._all_test_run_ids = {"id-12345"}
+
+        mock_find_ids.side_effect = set_ids
+        first_dir = Path("/tmp/test/id-12345/a")
+        second_dir = Path("/tmp/test/id-12345/b")
+        mock_get_dirs.return_value = [first_dir, second_dir]
+        mock_process_testrun.return_value = "rbdfio"
+
+        with self.assertLogs("formatter", level="WARNING") as log_ctx:
+            formatter.process()
+
+        # Warning must mention the test-run ID
+        self.assertTrue(any("id-12345" in msg for msg in log_ctx.output))
+        # Only the first directory is passed to _process_single_testrun
+        mock_process_testrun.assert_called_once_with(first_dir)
+
+
 class TestIntegration(unittest.TestCase):
     """Integration tests for TimeSeriesOutputFormatter"""
 
@@ -215,7 +223,7 @@ class TestIntegration(unittest.TestCase):
         mock_glob: Mock,
         mock_factory: Mock,
     ) -> None:
-        """Test complete workflow with memory-efficient processing"""
+        """Test complete workflow: factory called and process() invoked per directory"""
         # Setup mocks
         mock_glob.return_value = [
             Path("/tmp/test/id-12345/rbdfio/json_output.0"),
@@ -228,18 +236,16 @@ class TestIntegration(unittest.TestCase):
 
         mock_result = MagicMock()
         mock_result.type = "rbdfio"
-        # With new memory-efficient approach, timeseries data is written during process()
         mock_factory.return_value = mock_result
 
-        # Run workflow - data is written during process()
         formatter = TimeSeriesOutputFormatter(archive_directory="/tmp/test")
         formatter.process()
 
-        # Verify
+        # Factory is called and process() is invoked — data written to disk by RunResult
         mock_factory.assert_called()
         mock_result.process.assert_called()
-        # With new approach, timeseries_data should be empty (written during process())
-        self.assertEqual(len(formatter._timeseries_data), 0)
+        # D2: no _timeseries_data attribute on the formatter
+        self.assertFalse(hasattr(formatter, "_timeseries_data"))
 
 
 if __name__ == "__main__":

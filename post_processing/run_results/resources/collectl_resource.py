@@ -62,15 +62,12 @@ class CollectlResource(ResourceResult):
 
         return cpu_files[0]
 
-    def _parse(self, data: dict[str, Any]) -> None:
+    def _parse(self) -> None:
         """
         Parse collectl CPU data and calculate average CPU usage.
 
         Reads the semicolon-separated CPU file, extracts per-core metrics,
         and calculates the average total CPU usage across all cores and time samples.
-
-        Args:
-            data: Not used for collectl (reads directly from file)
         """
         try:
             cpu_usage = self._parse_cpu_file()

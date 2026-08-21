@@ -225,30 +225,18 @@ class FIO(BenchmarkResult):
     def _get_iodepth(self, iodepth_value: str) -> str:
         log.debug("Getting iodepth from %s and %s", iodepth_value, self._resource_file_path)
         iodepth: int = int(iodepth_value)
-        logfile_name: str = f"{self._resource_file_path}"
-
         logfile_iodepth: int = 0
 
-        # New workloads
-        for value in logfile_name.split("/"):
-            if "total_iodepth" in value:
-                logfile_iodepth = int(value[len("total_iodepth") + 1 :])
+        # Directory names are of the form "iodepth-001" or "total_iodepth-008",
+        # matching either the new nested layout or the old flat layout, e.g.:
+        #  /tmp/cbt/00000000/LibrbdFio/randwrite_1048576/iodepth-001/numjobs-001/output.0
+        for part in self._resource_file_path.parts:
+            if part.startswith("total_iodepth"):
+                logfile_iodepth = int(part[len("total_iodepth") + 1 :])
                 break
 
-            elif "iodepth" in value:
-                logfile_iodepth = int(value[len("iodepth") + 1 :])
-
-        # Old-style workloads
-        if not logfile_iodepth:
-            # the logfile name is of the format:
-            #  /tmp/cbt/00000000/LibrbdFio/randwrite_1048576/iodepth-001/numjobs-001/output.0
-            iodepth_start_index: int = logfile_name.find("iodepth")
-            numjobs_start_index: int = logfile_name.find("numjobs")
-            # an index of -1 is no match found, so do nothing
-            if iodepth_start_index != -1 and numjobs_start_index != -1:
-                iodepth_end_index: int = iodepth_start_index + len("iodepth")
-                iodepth_string: str = logfile_name[iodepth_end_index + 1 : numjobs_start_index - 1]
-                logfile_iodepth = int(iodepth_string)
+            if part.startswith("iodepth"):
+                logfile_iodepth = int(part[len("iodepth") + 1 :])
 
         iodepth = max(iodepth, logfile_iodepth)
 

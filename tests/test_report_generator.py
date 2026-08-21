@@ -23,13 +23,13 @@ class TestReportGenerator(unittest.TestCase):
         """Set up test fixtures with new nested structure"""
         self.temp_dir = tempfile.mkdtemp()
         self.archive_dir = Path(self.temp_dir) / "archive"
-        
+
         # Create new nested structure: operation/visualisation/
         read_vis_dir = self.archive_dir / "read" / "visualisation"
         write_vis_dir = self.archive_dir / "write" / "visualisation"
         read_vis_dir.mkdir(parents=True)
         write_vis_dir.mkdir(parents=True)
-        
+
         # Also create top-level visualisation for SVG files
         self.vis_dir = self.archive_dir / "visualisation"
         self.vis_dir.mkdir(parents=True)
@@ -93,13 +93,13 @@ class TestReportGenerator(unittest.TestCase):
     def test_build_strings_replace_underscores(self) -> None:
         """Test that build strings replace underscores with hyphens"""
         archive_with_underscores = Path(self.temp_dir) / "test_archive_name"
-        
+
         # Create new nested structure
         read_vis_dir = archive_with_underscores / "read" / "visualisation"
         read_vis_dir.mkdir(parents=True)
         # Format: {blocksize}_{numjobs}_{operation}.json
         (read_vis_dir / "4096_1_read.json").touch()
-        
+
         # Also create top-level visualisation for SVG files
         top_vis_dir = archive_with_underscores / "visualisation"
         top_vis_dir.mkdir(parents=True)
@@ -189,6 +189,190 @@ class TestReportGenerator(unittest.TestCase):
         self.assertEqual(ReportGenerator.MARKDOWN_FILE_EXTENSION, "md")
         self.assertEqual(ReportGenerator.PDF_FILE_EXTENSION, "pdf")
         self.assertEqual(ReportGenerator.BASE_HEADER_FILE_PATH, "include/performance_report.tex")
+
+
+class TestSortKeyRobustness(unittest.TestCase):
+    """Tests that sort helpers do not raise on unexpected file name formats.
+
+    Previously both _data_file_sort_key and _sort_list_of_paths used bare int()
+    conversions that raised ValueError/IndexError for any file name not matching
+    the strict BLOCKSIZE_NUMJOBS_OPERATION pattern.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.mkdtemp()
+        self.archive_dir = Path(self.temp_dir) / "archive"
+        vis_dir = self.archive_dir / "read" / "visualisation"
+        vis_dir.mkdir(parents=True)
+        (vis_dir / "4096_1_read.json").touch()
+        (self.archive_dir / "visualisation").mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_generator(self) -> SimpleReportGenerator:
+        return SimpleReportGenerator(
+            archive_directories=[str(self.archive_dir)],
+            output_directory=f"{self.temp_dir}/output",
+        )
+
+    # --- _data_file_sort_key ---
+
+    def test_data_file_sort_key_well_formed_name(self) -> None:
+        """Standard BLOCKSIZE_NUMJOBS_OPERATION.json name sorts by (blocksize, numjobs)."""
+        key = ReportGenerator._data_file_sort_key("4096_2_randread.json")
+        self.assertEqual(key, (4096, 2))
+
+    def test_data_file_sort_key_unparseable_returns_zero_tuple(self) -> None:
+        """A file name that does not match the expected pattern returns (0, 0).
+
+        Previously this raised ValueError; now it falls back gracefully.
+        """
+        key = ReportGenerator._data_file_sort_key("unexpected_file_name.json")
+        self.assertEqual(key, (0, 0))
+
+    def test_data_file_sort_key_single_token_returns_zero_tuple(self) -> None:
+        """A name with only one underscore-separated token returns (0, 0)."""
+        key = ReportGenerator._data_file_sort_key("nounderscores")
+        self.assertEqual(key, (0, 0))
+
+    def test_data_file_sort_key_non_numeric_token_returns_zero_tuple(self) -> None:
+        """A name whose first token is non-numeric returns (0, 0), not ValueError."""
+        key = ReportGenerator._data_file_sort_key("K_2_read.json")
+        self.assertEqual(key, (0, 0))
+
+    def test_data_file_sort_key_sorts_mixed_valid_and_invalid(self) -> None:
+        """Sorting a list containing both valid and invalid names does not raise."""
+        names = ["8192_1_read.json", "unexpected.json", "4096_2_write.json", "also_bad"]
+        result = sorted(names, key=ReportGenerator._data_file_sort_key)
+        # Invalid names sort to (0,0) and appear first; valid names sort numerically
+        self.assertIn("4096_2_write.json", result)
+        self.assertIn("8192_1_read.json", result)
+
+    # --- _sort_list_of_paths ---
+
+    def test_sort_list_of_paths_well_formed(self) -> None:
+        """Paths whose stem matches BLOCKSIZE_NUMJOBS_OPERATION sort correctly."""
+        generator = self._make_generator()
+        paths = [
+            Path("/vis/16K_1_read.json"),
+            Path("/vis/4K_1_read.json"),
+            Path("/vis/8K_1_read.json"),
+        ]
+        sorted_paths = generator._sort_list_of_paths(paths, index=0)
+        stems = [p.stem for p in sorted_paths]
+        self.assertEqual(stems, ["4K_1_read", "8K_1_read", "16K_1_read"])
+
+    def test_sort_list_of_paths_unparseable_stem_does_not_raise(self) -> None:
+        """A path whose stem cannot be parsed returns sort key 0, not ValueError."""
+        generator = self._make_generator()
+        paths = [
+            Path("/vis/8K_1_read.json"),
+            Path("/vis/unexpected_file.json"),  # token[:-1] = "unexpecte" → int() fails
+        ]
+        # Must not raise
+        result = generator._sort_list_of_paths(paths, index=0)
+        self.assertEqual(len(result), 2)
+
+    def test_sort_list_of_paths_index_out_of_range_does_not_raise(self) -> None:
+        """A stem with fewer tokens than index does not raise IndexError."""
+        generator = self._make_generator()
+        paths = [Path("/vis/only_one.json")]
+        # index=2 is out of range for a stem with 2 underscore-tokens
+        result = generator._sort_list_of_paths(paths, index=5)
+        self.assertEqual(len(result), 1)
+
+
+class TestFindAndSortFilePathsSignature(unittest.TestCase):
+    """Tests that _find_and_sort_file_paths no longer accepts Optional[int].
+
+    Previously the abstract declaration and both concrete implementations
+    typed index as Optional[int] = 0, then immediately asserted it was not
+    None — a contradiction.  The fix changes the type to int = 0 throughout
+    and removes the vacuous assert.
+    """
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.mkdtemp()
+        self.archive_dir = Path(self.temp_dir) / "archive"
+        vis_dir = self.archive_dir / "read" / "visualisation"
+        vis_dir.mkdir(parents=True)
+        (vis_dir / "4096_1_read.json").touch()
+        (self.archive_dir / "visualisation").mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_simple_generator(self) -> SimpleReportGenerator:
+        return SimpleReportGenerator(
+            archive_directories=[str(self.archive_dir)],
+            output_directory=f"{self.temp_dir}/output",
+        )
+
+    def test_simple_generator_index_defaults_to_zero(self) -> None:
+        """SimpleReportGenerator._find_and_sort_file_paths works with the default index."""
+        gen = self._make_simple_generator()
+        vis_dir = self.archive_dir / "read" / "visualisation"
+        result = gen._find_and_sort_file_paths([vis_dir], "*.json")
+        self.assertIsInstance(result, list)
+
+    def test_simple_generator_explicit_int_index_accepted(self) -> None:
+        """SimpleReportGenerator._find_and_sort_file_paths accepts an explicit int index."""
+        gen = self._make_simple_generator()
+        vis_dir = self.archive_dir / "read" / "visualisation"
+        result = gen._find_and_sort_file_paths([vis_dir], "*.json", index=0)
+        self.assertIsInstance(result, list)
+
+    def test_none_is_not_a_valid_index(self) -> None:
+        """Passing None as index is rejected by the type system and raises at runtime.
+
+        Previously None was nominally accepted (Optional[int]) and then
+        immediately asserted away.  Now the parameter is typed as int so
+        mypy catches this statically; at runtime sorted() would receive a
+        None index and raise a TypeError.
+        """
+        gen = self._make_simple_generator()
+        vis_dir = self.archive_dir / "read" / "visualisation"
+        with self.assertRaises((TypeError, AssertionError)):
+            gen._find_and_sort_file_paths([vis_dir], "*.json", index=None)  # type: ignore[arg-type]
+
+
+class TestPackageInitFile(unittest.TestCase):
+    """Tests that post_processing has a correctly named __init__.py (W6).
+
+    Previously the file was named ___init___.py (three underscores each side)
+    which Python ignores.  The fix deletes that file and creates the standard
+    __init__.py.
+    """
+
+    def test_correct_init_file_exists(self) -> None:
+        """post_processing/__init__.py (two underscores) exists."""
+        import post_processing
+
+        init_path = (
+            Path(post_processing.__file__)
+            if hasattr(post_processing, "__file__") and post_processing.__file__
+            else None
+        )
+        # The package must have been found by Python — __file__ points to __init__.py
+        self.assertIsNotNone(init_path, "post_processing should be importable as a package")
+
+    def test_triple_underscore_init_does_not_exist(self) -> None:
+        """post_processing/___init___.py (three underscores) must not exist."""
+        import post_processing
+
+        package_dir = Path(post_processing.__file__).parent  # type: ignore[arg-type]
+        bad_init = package_dir / "___init___.py"
+        self.assertFalse(
+            bad_init.exists(),
+            f"Found {bad_init} — this file is silently ignored by Python and should be deleted.",
+        )
+
+    def test_post_processing_is_a_proper_package(self) -> None:
+        """post_processing is importable and exposes __path__ as a real package."""
+        import post_processing
+
+        self.assertTrue(hasattr(post_processing, "__path__"), "post_processing must be a package, not a plain module")
 
 
 # Made with Bob

@@ -6,14 +6,12 @@ common data format that can be plotted
 import re
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Literal, Union, cast
+from typing import Literal, Optional, Union, cast
 
-from post_processing.common import sum_mean_values, sum_standard_deviation_values
+from post_processing.common import calculate_timeseries_maximum_values, sum_mean_values, sum_standard_deviation_values
 from post_processing.post_processing_types import IodepthDataType, TimeSeriesDataPoint, TimeSeriesFormatType
 from post_processing.run_results.benchmark_result import BenchmarkResult
 from post_processing.run_results.benchmarks.fio import FIO
-from post_processing.run_results.resource_result import ResourceResult
-from post_processing.run_results.resources.fio_resource import FIOResource
 from post_processing.run_results.run_result import RunResult
 
 log: Logger = getLogger(name="formatter")
@@ -97,6 +95,7 @@ class RBDFIO(RunResult):
         self,
         test_config: tuple[str, str, str, str],
         new_timeseries: TimeSeriesFormatType,
+        existing_timeseries: Optional[TimeSeriesFormatType] = None,
     ) -> TimeSeriesFormatType:
         """
         Aggregate time-series data across multiple per-volume FIO result files.
@@ -105,10 +104,13 @@ class RBDFIO(RunResult):
         - Throughput metrics (IOPS, bandwidth) are summed across volumes
         - Latency metrics are weighted-averaged by IOPS (more accurate than simple average)
         - Maximum latency uses the maximum value across volumes
+
+        Args:
+            test_config: Tuple of (operation, blocksize, iodepth, number_of_jobs)
+            new_timeseries: Newly parsed time-series data for this volume
+            existing_timeseries: Previously merged data for the same key, if any
         """
-        operation, blocksize, iodepth, _ = test_config
-        key = f"{operation}_{blocksize}_{iodepth}"
-        existing_timeseries = self._timeseries_data.get(key)
+        _operation, _blocksize, iodepth, _ = test_config
         if not existing_timeseries:
             return new_timeseries
 
@@ -185,31 +187,7 @@ class RBDFIO(RunResult):
         start_time = combined_timeseries[0]["timestamp_sec"] if combined_timeseries else 0.0
         end_time = combined_timeseries[-1]["timestamp_sec"] if combined_timeseries else 0.0
 
-        # Calculate maximum values from the combined timeseries
-        # (similar to _calculate_maximum_values in FIOTimeSeriesParser)
-        if combined_timeseries:
-            max_iops_point = max(combined_timeseries, key=lambda p: p["iops"])
-            maximum_iops = max_iops_point["iops"]
-            latency_at_max_iops = max_iops_point["mean_latency_ms"]
-            timestamp_at_max_iops = max_iops_point["timestamp_sec"]
-
-            max_bandwidth_point = max(combined_timeseries, key=lambda p: p["bandwidth_bytes"])
-            maximum_bandwidth = max_bandwidth_point["bandwidth_bytes"]
-            latency_at_max_bandwidth = max_bandwidth_point["mean_latency_ms"]
-            timestamp_at_max_bandwidth = max_bandwidth_point["timestamp_sec"]
-
-            max_latency_point = max(combined_timeseries, key=lambda p: p["mean_latency_ms"])
-            maximum_latency = max_latency_point["mean_latency_ms"]
-            timestamp_at_max_latency = max_latency_point["timestamp_sec"]
-        else:
-            maximum_iops = 0.0
-            latency_at_max_iops = 0.0
-            timestamp_at_max_iops = 0.0
-            maximum_bandwidth = 0.0
-            latency_at_max_bandwidth = 0.0
-            timestamp_at_max_bandwidth = 0.0
-            maximum_latency = 0.0
-            timestamp_at_max_latency = 0.0
+        maximum_values = calculate_timeseries_maximum_values(combined_timeseries)
 
         return {
             "benchmark": new_timeseries["benchmark"],
@@ -224,19 +202,19 @@ class RBDFIO(RunResult):
                 "num_volumes": int(existing_timeseries["metadata"]["num_volumes"])
                 + int(new_timeseries["metadata"]["num_volumes"]),
                 "sampling_interval_ms": int(new_timeseries["metadata"]["sampling_interval_ms"]),
-                "log_avg_msec": int(new_timeseries["metadata"]["log_avg_msec"]),
             },
             "timeseries": combined_timeseries,
-            "maximum_iops": f"{maximum_iops:.0f}",
-            "maximum_bandwidth": f"{maximum_bandwidth:.0f}",
-            "latency_at_max_iops": f"{latency_at_max_iops:.6f}",
-            "latency_at_max_bandwidth": f"{latency_at_max_bandwidth:.6f}",
-            "timestamp_at_max_iops": f"{timestamp_at_max_iops:.6f}",
-            "timestamp_at_max_bandwidth": f"{timestamp_at_max_bandwidth:.6f}",
-            "maximum_latency": f"{maximum_latency:.6f}",
-            "timestamp_at_max_latency": f"{timestamp_at_max_latency:.6f}",
-            "maximum_cpu_usage": "0.00",  # TODO: Add CPU/memory tracking
-            "maximum_memory_usage": "0.00",
+            # pylint: disable=duplicate-code  # key names mirror TimeSeriesFormatType fields
+            "maximum_iops": maximum_values["maximum_iops"],
+            "maximum_bandwidth": maximum_values["maximum_bandwidth"],
+            "latency_at_max_iops": maximum_values["latency_at_max_iops"],
+            "latency_at_max_bandwidth": maximum_values["latency_at_max_bandwidth"],
+            "timestamp_at_max_iops": maximum_values["timestamp_at_max_iops"],
+            "timestamp_at_max_bandwidth": maximum_values["timestamp_at_max_bandwidth"],
+            "maximum_latency": maximum_values["maximum_latency"],
+            "timestamp_at_max_latency": maximum_values["timestamp_at_max_latency"],
+            "maximum_cpu_usage": maximum_values["maximum_cpu_usage"],
+            "maximum_memory_usage": maximum_values["maximum_memory_usage"],
         }
 
     def _create_benchmark_result(self, file_path: Path) -> BenchmarkResult:
@@ -253,18 +231,3 @@ class RBDFIO(RunResult):
             FIO instance for parsing the benchmark results
         """
         return FIO(file_path=file_path)
-
-    def _create_resource_result(self, file_path: Path) -> ResourceResult:
-        """
-        Factory method to create FIO resource result parser.
-
-        RBDFIO uses FIO's resource monitoring, so this returns a FIOResource
-        instance to parse CPU and memory usage from the output.
-
-        Args:
-            file_path: Path to the FIO JSON output file
-
-        Returns:
-            FIOResource instance for parsing resource usage statistics
-        """
-        return FIOResource(file_path=file_path)

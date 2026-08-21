@@ -447,7 +447,7 @@ top - 14:32:01 up 1 day
             with mock.patch("post_processing.run_results.resources.top_resource.os.cpu_count", return_value=_CPU_COUNT):
                 resource = TopResource(file_path)
             with mock.patch.object(resource, "_parse_top_directory", side_effect=RuntimeError("boom")):
-                resource._parse({})  # pylint: disable=protected-access
+                resource._parse()  # pylint: disable=protected-access
 
             assert resource.cpu == "0.00"
             assert resource.memory == "0.00"

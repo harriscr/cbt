@@ -89,25 +89,11 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
             BenchmarkResult subclass instance for parsing this benchmark type
         """
 
-    @abstractmethod
-    def _create_resource_result(self, file_path: Path) -> ResourceResult:
-        """
-        Factory method to create the appropriate ResourceResult subclass.
-
-        Subclasses should implement this to return the correct resource result
-        parser based on the benchmark type (e.g., FIOResource, etc.).
-
-        Args:
-            file_path: Path to the benchmark output file
-
-        Returns:
-            ResourceResult subclass instance for parsing resource usage
-        """
-
     def _merge_timeseries_data(
         self,
         test_config: tuple[str, str, str, str],
         new_timeseries: TimeSeriesFormatType,
+        existing_timeseries: Optional[TimeSeriesFormatType] = None,
     ) -> TimeSeriesFormatType:
         """
         Merge new time-series data with existing data for the same test configuration.
@@ -118,13 +104,13 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
         Args:
             test_config: Tuple of (operation, blocksize, iodepth, number_of_jobs)
             new_timeseries: Newly parsed time-series data
+            existing_timeseries: Previously stored data for this key, if any
 
         Returns:
             TimeSeriesFormatType to store for this configuration
         """
         operation, blocksize, iodepth, _ = test_config
         key = f"{operation}_{blocksize}_{iodepth}"
-        existing_timeseries = self._timeseries_data.get(key)
         if existing_timeseries:
             log.debug("Replacing existing time-series data for %s", key)
         return new_timeseries
@@ -165,17 +151,17 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
         If there is only details for a single volume then we can convert the
         data from the fio output directly into our output format
         """
-
+        files_to_process: list[Path] = []
         for file_path in self._files:
-            if not file_is_empty(file_path):
-                if not file_is_precondition(file_path):
-                    log.debug("Processing file %s", file_path)
-                    self._convert_file(file_path)
-                else:
-                    log.warning("Not processing file %s as it is from a precondition operation", file_path)
-                    self._files.remove(file_path)
-            else:
+            if file_is_empty(file_path):
                 log.warning("Cannot process file %s as it is empty", file_path)
+            elif file_is_precondition(file_path):
+                log.warning("Not processing file %s as it is from a precondition operation", file_path)
+            else:
+                log.debug("Processing file %s", file_path)
+                self._convert_file(file_path)
+                files_to_process.append(file_path)
+        self._files = files_to_process
 
     def _extract_test_configuration(self, benchmark_result: BenchmarkResult) -> tuple[str, str, str, str]:
         """
@@ -304,17 +290,10 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
             if aggregation_directory not in self._timeseries_by_directory:
                 self._timeseries_by_directory[aggregation_directory] = {}
 
-            # Store existing data temporarily in _timeseries_data for merge to find it
+            # Retrieve any previously stored data and pass directly to the merge method
             existing_data = self._timeseries_by_directory[aggregation_directory].get(key)
-            if existing_data:
-                self._timeseries_data[key] = existing_data
 
-            # Now merge will find the existing data
-            merged_ts_data = self._merge_timeseries_data(test_config, ts_data)
-
-            # Clear temporary storage
-            if key in self._timeseries_data:
-                del self._timeseries_data[key]
+            merged_ts_data = self._merge_timeseries_data(test_config, ts_data, existing_data)
 
             # Store merged result
             self._timeseries_by_directory[aggregation_directory][key] = merged_ts_data
@@ -542,7 +521,11 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
             # Use factory method for benchmark result
             io: BenchmarkResult = self._create_benchmark_result(file_path)
 
-            # Get ALL available resource sources using factory
+            # Resource discovery is handled by get_all_resources() in
+            # resource_result_factory.py, which auto-discovers all monitoring
+            # sources active for this file (FIO embedded CPU, Collectl, top).
+            # There is intentionally no per-subclass factory method here —
+            # the multi-source factory replaced the old single-source pattern.
             resources: list[ResourceResult] = get_all_resources(file_path)
 
             test_config = self._extract_test_configuration(io)
