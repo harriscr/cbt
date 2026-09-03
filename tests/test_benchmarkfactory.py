@@ -2,7 +2,7 @@
 
 import unittest
 import benchmarkfactory
-from log_support import setup_loggers
+from logging_configuration import setup_loggers
 
 
 class TestBenchmarkFactory(unittest.TestCase):

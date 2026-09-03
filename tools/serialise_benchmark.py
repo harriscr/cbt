@@ -16,7 +16,7 @@ import yaml
 import benchmarkfactory
 import settings
 from cluster.ceph import Ceph
-from log_support import setup_loggers
+from logging_configuration import setup_loggers
 
 log_fname = "/tmp/cbt-utest.log"
 
