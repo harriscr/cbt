@@ -31,9 +31,7 @@ cbt/
 │   ├── rawfio.py
 │   ├── radosbench.py
 │   ├── cephtestrados.py
-│   ├── cosbench.py
 │   ├── hsbench.py
-│   ├── getput.py
 │   ├── nullbench.py
 │   └── lis.py
 │

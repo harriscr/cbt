@@ -32,7 +32,6 @@ class BenchGenerator(object):
         "hsbench",
         "radosbench",
         "cephtestrados",
-        "getput",
     ]
     archive_dir = "/tmp"
     iteration = {"acceptable": [1, 2, 3], "iteration": 0}

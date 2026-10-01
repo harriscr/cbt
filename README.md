@@ -86,8 +86,7 @@ Optional tools and benchmarks can be used if desired:
  5. valgrind - runtime memory and cpu profiling of specific processes
  6. fio - benchmark suite with integrated posix, libaio, and librbd 
     support
- 7. cosbench - object storage benchmark from Intel
- 8. pytest - to run the unit tests.
+ 7. pytest - to run the unit tests.
 
 ## USER AND NODE SETUP
 

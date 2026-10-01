@@ -23,9 +23,7 @@ BENCHMARK_TYPE_MAP: dict[str, type[RunResult]] = {
     "rawfio": RBDFIO,  # RawFio uses same result format as RbdFio
     # Add more mappings as new RunResult subclasses are implemented
     # 'radosbench': RadosBench,
-    # 'cosbench': CosBench,
     # 'hsbench': HsBench,
-    # 'getput': GetPut,
     # etc.
 }
 

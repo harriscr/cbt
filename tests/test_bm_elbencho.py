@@ -214,17 +214,13 @@ class TestBenchmarkFactoryIntegration:
 
     def test_get_object_returns_elbencho(self) -> None:
         """get_object returns an Elbencho instance for the 'elbencho' key."""
-        b = benchmarkfactory.get_object(  # type: ignore[no-untyped-call]
-            "/tmp", _mock_cluster(), "elbencho", dict(_MINIMAL_CONFIG)
-        )
+        b = benchmarkfactory.get_object("/tmp", _mock_cluster(), "elbencho", dict(_MINIMAL_CONFIG))
         assert isinstance(b, Elbencho)
 
-    def test_unknown_benchmark_returns_none(self) -> None:
-        """get_object returns None for an unrecognised benchmark name."""
-        b = benchmarkfactory.get_object(  # type: ignore[no-untyped-call]
-            "/tmp", _mock_cluster(), "no_such_benchmark", dict(_MINIMAL_CONFIG)
-        )
-        assert b is None
+    def test_unknown_benchmark_raises_key_error(self) -> None:
+        """get_object raises KeyError for an unrecognised benchmark name."""
+        with pytest.raises(KeyError):
+            benchmarkfactory.get_object("/tmp", _mock_cluster(), "no_such_benchmark", dict(_MINIMAL_CONFIG))
 
     def test_get_all_yields_single_instance_despite_list_valued_workload_params(self) -> None:
         """get_all returns exactly one Elbencho object even with list-valued workload params."""
@@ -243,7 +239,7 @@ class TestBenchmarkFactoryIntegration:
                 },
             }
         }
-        objects = list(benchmarkfactory.get_all("/tmp", _mock_cluster(), 0))  # type: ignore[no-untyped-call]
+        objects = list(benchmarkfactory.get_all("/tmp", _mock_cluster(), 0))
         elbencho_objects = [o for o in objects if isinstance(o, Elbencho)]
         assert len(elbencho_objects) == 1
 
@@ -303,9 +299,9 @@ class TestRunLoop:
         )
         b._run_workloads()
         mkdir_calls = [c.args[1] for c in mock_mkdir.call_args_list]
-        assert any("elbencho/write_4096/threads-016/iodepth-004" in d for d in mkdir_calls), (
-            f"Expected path segment not found in: {mkdir_calls}"
-        )
+        assert any(
+            "elbencho/write_4096/threads-016/iodepth-004" in d for d in mkdir_calls
+        ), f"Expected path segment not found in: {mkdir_calls}"
 
     @patch.object(AsyncSSHExecutor, "make_remote_dir")
     @patch.object(AsyncSSHExecutor, "run_command")
@@ -359,9 +355,9 @@ class TestRunLoop:
         assert cmd.endswith("s3://bkt")
 
         run_dirs = [c.args[1] for c in mock_mkdir.call_args_list]
-        assert any("elbencho/write_131072/threads-008/iodepth-016" in d for d in run_dirs), (
-            f"byte-based run dir not found in: {run_dirs}"
-        )
+        assert any(
+            "elbencho/write_131072/threads-008/iodepth-016" in d for d in run_dirs
+        ), f"byte-based run dir not found in: {run_dirs}"
 
 
 # ---------------------------------------------------------------------------

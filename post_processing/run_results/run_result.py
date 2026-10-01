@@ -80,7 +80,7 @@ class RunResult(ABC):  # pylint: disable=too-many-instance-attributes
         Factory method to create the appropriate BenchmarkResult subclass.
 
         Subclasses should implement this to return the correct benchmark result
-        parser based on the benchmark type (e.g., FIO, CosBench, etc.).
+        parser based on the benchmark type (e.g., FIO, RadosBench, etc.).
 
         Args:
             file_path: Path to the benchmark output file

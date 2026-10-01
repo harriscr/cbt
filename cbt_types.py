@@ -15,5 +15,4 @@ class BenchmarkType(Enum):
     KVMRBDFIO = auto()
     RAWFIO = auto()
     RADOSBENCH = auto()
-    COSBENCH = auto()
     HSBENCH = auto()

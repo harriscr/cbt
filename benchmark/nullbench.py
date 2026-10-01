@@ -1,19 +1,25 @@
-from .benchmark import Benchmark
+"""Nullbench benchmark — no-op placeholder for testing the CBT framework."""
+
+from benchmark.benchmark import Benchmark
 
 
 class Nullbench(Benchmark):
+    """Null benchmark that performs no actual I/O operations.
 
-    def __init__(self, archive_dir, cluster, config):
-        super(Nullbench, self).__init__(archive_dir, cluster, config)
+    Delegates entirely to :class:`~benchmark.benchmark.Benchmark` for lifecycle
+    management.  Useful for exercising the CBT orchestration pipeline without
+    requiring a live Ceph cluster or benchmark binary.
+    """
 
-    def initialize(self):
-        super(Nullbench, self).initialize()
+    @property
+    def benchmark_type(self) -> str:
+        return "nullbench"
 
-    def run(self):
-        super(Nullbench, self).run()
+    def setup_targets(self) -> None:
+        """Nullbench has no targets to set up."""
 
-    def recovery_callback(self):
-        pass
+    def cleanup_targets(self) -> None:
+        """Nullbench has no targets to clean up."""
 
-    def __str__(self):
-        super(Nullbench, self).__str__()
+    def __str__(self) -> str:  # pylint: disable=useless-parent-delegation
+        return super().__str__()

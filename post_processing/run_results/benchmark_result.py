@@ -44,7 +44,7 @@ class BenchmarkResult(ABC):  # pylint: disable=too-many-instance-attributes
         Get the source/type identifier for the benchmark tool.
 
         Returns:
-            A string identifier for the benchmark source (e.g., "fio", "cosbench")
+            A string identifier for the benchmark source (e.g., "fio", "radosbench")
         """
 
     @abstractmethod

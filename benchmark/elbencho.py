@@ -10,11 +10,10 @@ from typing import Any
 import yaml
 
 import settings
+from benchmark.benchmark import Benchmark
 from monitoring.monitoring_factory import MonitoringFactory
 from remote.async_ssh import AsyncSSHExecutor
 from remote.remote_executor import RemoteExecutor
-
-from .benchmark import Benchmark
 
 logger = logging.getLogger("cbt")
 
@@ -31,7 +30,7 @@ class Elbencho(Benchmark):
         config["s3_session_token"] = self.auth.get("s3_session_token", "")
         config.pop("auth", None)
 
-        super().__init__(archive_dir, cluster, config)  # type: ignore[no-untyped-call]
+        super().__init__(archive_dir, cluster, config)
 
         self.cmd_path = config.get("cmd_path", "/usr/local/bin/elbencho")
 
@@ -53,6 +52,10 @@ class Elbencho(Benchmark):
     # Duration estimation
     # ------------------------------------------------------------------
 
+    @property
+    def benchmark_type(self) -> str:
+        return "elbencho"
+
     def estimate_duration(self) -> int:
         """Estimate total wall-clock seconds for all elbencho workloads.
 
@@ -61,6 +64,16 @@ class Elbencho(Benchmark):
         to handle the ``duration`` key used by elbencho workloads.
         """
         return self._workloads.estimate_duration()
+
+    # ------------------------------------------------------------------
+    # Lifecycle hooks — Elbencho uses Workloads pipeline, no targets needed
+    # ------------------------------------------------------------------
+
+    def setup_targets(self) -> None:
+        """Elbencho uses the Workloads pipeline — no explicit target setup required."""
+
+    def cleanup_targets(self) -> None:
+        """Elbencho uses the Workloads pipeline — no explicit target cleanup required."""
 
     # ------------------------------------------------------------------
     # Lifecycle overrides (pdsh-free)
@@ -73,7 +86,7 @@ class Elbencho(Benchmark):
         return False
 
     def initialize(self) -> None:
-        super().initialize()  # type: ignore[no-untyped-call]
+        super().initialize()
 
         logger.info("Verifying elbencho binary is executable on all client nodes: %s", self.cmd_path)
         self._remote.run_command_with_error_checking(
@@ -130,9 +143,6 @@ class Elbencho(Benchmark):
             self.run_dir,
             self.archive_dir,
         )
-
-    def cleanup(self) -> None:
-        pass
 
     # ------------------------------------------------------------------
     # Validation
